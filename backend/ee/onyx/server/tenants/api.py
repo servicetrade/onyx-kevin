@@ -128,11 +128,19 @@ async def impersonate_user(
 @router.post("/leave-organization")
 async def leave_organization(
     user_email: UserByEmail,
-    _: User = Depends(current_admin_user),
+    current_user: User | None = Depends(current_admin_user),
     db_session: Session = Depends(get_session),
     tenant_id: str = Depends(get_current_tenant_id),
 ) -> None:
+    if current_user is None or current_user.email != user_email.user_email:
+        raise HTTPException(
+            status_code=403, detail="You can only leave the organization as yourself"
+        )
+
     user_to_delete = get_user_by_email(user_email.user_email, db_session)
+    if user_to_delete is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
     num_admin_users = await get_user_count(only_admin_users=True)
 
     should_delete_tenant = num_admin_users == 1
