@@ -73,9 +73,6 @@ const Page = async (props: {
     return redirect(authUrl);
   }
 
-  console.log("LL");
-  console.log(authUrl);
-  console.log(authTypeMetadata);
   return (
     <AuthFlowContainer>
       <div className="absolute top-10x w-full">
