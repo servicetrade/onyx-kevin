@@ -57,7 +57,7 @@ def test_llm_configuration(
     )
 
     functions_with_args: list[tuple[Callable, tuple]] = [(test_llm, (llm,))]
-
+    print(llm.config.__dict__)
     if (
         test_llm_request.fast_default_model_name
         and test_llm_request.fast_default_model_name
