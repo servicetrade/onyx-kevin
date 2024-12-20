@@ -5,6 +5,8 @@ import useSWRMutation from "swr/mutation";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { DeleteEntityModal } from "@/components/modals/DeleteEntityModal";
+import { useRouter } from "next/navigation";
+
 export const LeaveOrganizationButton = ({
   user,
   setPopup,
@@ -14,6 +16,7 @@ export const LeaveOrganizationButton = ({
   setPopup: (spec: PopupSpec) => void;
   mutate: () => void;
 }) => {
+  const router = useRouter();
   const { trigger, isMutating } = useSWRMutation(
     "/api/tenants/leave-organization",
     userMutationFetcher,
@@ -35,8 +38,9 @@ export const LeaveOrganizationButton = ({
 
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
-  const handleLeaveOrganization = () => {
-    trigger({ user_email: user.email, method: "POST" });
+  const handleLeaveOrganization = async () => {
+    await trigger({ user_email: user.email, method: "POST" });
+    router.push("/");
   };
 
   return (

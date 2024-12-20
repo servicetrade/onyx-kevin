@@ -15,6 +15,7 @@ from ee.onyx.server.tenants.models import ImpersonateRequest
 from ee.onyx.server.tenants.models import ProductGatingRequest
 from ee.onyx.server.tenants.provisioning import delete_user_from_control_plane
 from ee.onyx.server.tenants.user_mapping import get_tenant_id_for_email
+from ee.onyx.server.tenants.user_mapping import remove_all_users_from_tenant
 from ee.onyx.server.tenants.user_mapping import remove_users_from_tenant
 from onyx.auth.users import auth_backend
 from onyx.auth.users import current_admin_user
@@ -126,20 +127,23 @@ async def impersonate_user(
 
 @router.post("/leave-organization")
 async def leave_organization(
-    user_to_delete: UserByEmail,
-    _: User | None = Depends(current_admin_user),
+    user_email: UserByEmail,
+    _: User = Depends(current_admin_user),
     db_session: Session = Depends(get_session),
     tenant_id: str = Depends(get_current_tenant_id),
 ) -> None:
+    user_to_delete = get_user_by_email(user_email.user_email, db_session)
     num_admin_users = await get_user_count(only_admin_users=True)
-    if num_admin_users == 1:
+
+    should_delete_tenant = num_admin_users == 1
+
+    if should_delete_tenant:
         logger.info(
             "Last admin user is leaving the organization. Deleting tenant from control plane."
         )
-        # First, remove the user from the control plane so we don't leave the system in a partial state.
         try:
-            await delete_user_from_control_plane(tenant_id, user_to_delete.user_email)
-            print("User deleted from control plane")
+            await delete_user_from_control_plane(tenant_id, user_to_delete.email)
+            logger.debug("User deleted from control plane")
         except Exception as e:
             logger.exception(
                 f"Failed to delete user from control plane for tenant {tenant_id}: {e}"
@@ -149,6 +153,10 @@ async def leave_organization(
                 detail=f"Failed to remove user from control plane: {str(e)}",
             )
 
-    # Next, handle local deletion and remove the user from this tenant's mapping.
+    db_session.expunge(user_to_delete)
     delete_user_from_db(user_to_delete, db_session)
-    remove_users_from_tenant([user_to_delete.email], tenant_id)
+
+    if should_delete_tenant:
+        remove_all_users_from_tenant(tenant_id)
+    else:
+        remove_users_from_tenant([user_to_delete.email], tenant_id)
