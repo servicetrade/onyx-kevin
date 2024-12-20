@@ -286,9 +286,6 @@ class DefaultMultiLLM(LLM):
             # Update model_kwargs with remaining non-empty config
             model_kwargs.update(filtered_config)
 
-        model_kwargs = model_kwargs or {}
-        if custom_config:
-            model_kwargs.update(custom_config)
         if extra_headers:
             model_kwargs.update({"extra_headers": extra_headers})
         if extra_body:
