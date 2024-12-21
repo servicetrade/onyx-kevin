@@ -279,9 +279,7 @@ class DefaultMultiLLM(LLM):
             # completion call for vertex AI. More details here:
             # https://docs.litellm.ai/docs/providers/vertex
             vertex_credentials_key = "vertex_credentials"
-            vertex_credentials = (
-                custom_config.get(vertex_credentials_key) if custom_config else None
-            )
+            vertex_credentials = custom_config.get(vertex_credentials_key)
             if vertex_credentials and model_provider == "vertex_ai":
                 model_kwargs[vertex_credentials_key] = vertex_credentials
             else:
