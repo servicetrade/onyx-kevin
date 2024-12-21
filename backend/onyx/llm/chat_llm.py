@@ -522,4 +522,4 @@ class DefaultMultiLLM(LLM):
                     log_msg = ""
                 logger.debug(f"Raw Model Output:\n{log_msg}")
             else:
-                logger.debug(f"Raw Model Output:\n{content}")  #
+                logger.debug(f"Raw Model Output:\n{content}")
