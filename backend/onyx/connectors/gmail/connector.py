@@ -304,6 +304,8 @@ class GmailConnector(LoadConnector, PollConnector, SlimConnector):
                     fields=THREAD_FIELDS,
                     id=thread["id"],
                 )
+                # full_threads is an iterator containing a single thread
+                # so we need to convert it to a list and grab the first element
                 full_thread = list(full_threads)[0]
                 doc = thread_to_document(full_thread)
                 if doc is None:
