@@ -415,6 +415,7 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
                             existing_oauth_account,  # type: ignore
                             oauth_account_dict,
                         )
+            await db_session.execute(text(f'SET search_path = "{tenant_id}"'))
 
             # NOTE: Most IdPs have very short expiry times, and we don't want to force the user to
             # re-authenticate that frequently, so by default this is disabled
