@@ -395,11 +395,9 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
                     # Explicitly set the Postgres schema for this session to ensure
                     # OAuth account creation happens in the correct tenant schema
-                    await db_session.execute(text(f'SET search_path = "{tenant_id}"'))
 
                     # Add OAuth account
                     await self.user_db.add_oauth_account(user, oauth_account_dict)
-
                     await self.on_after_register(user, request)
 
             else:
@@ -415,11 +413,11 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
                             existing_oauth_account,  # type: ignore
                             oauth_account_dict,
                         )
-            await db_session.execute(text(f'SET search_path = "{tenant_id}"'))
+
+                await db_session.execute(text(f'SET search_path = "{tenant_id}"'))
 
             # NOTE: Most IdPs have very short expiry times, and we don't want to force the user to
             # re-authenticate that frequently, so by default this is disabled
-
             if expires_at and TRACK_EXTERNAL_IDP_EXPIRY:
                 oidc_expiry = datetime.fromtimestamp(expires_at, tz=timezone.utc)
                 await self.user_db.update(
