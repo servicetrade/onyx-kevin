@@ -399,38 +399,6 @@ async def get_async_session_with_tenant(
             yield session
 
 
-# @asynccontextmanager
-# async def get_async_session_with_tenant(
-#     tenant_id: str | None = None,
-# ) -> AsyncGenerator[AsyncSession, None]:
-#     if tenant_id is None:
-#         tenant_id = CURRENT_TENANT_ID_CONTEXTVAR.get()
-
-#     if not is_valid_schema_name(tenant_id):
-#         logger.error(f"Invalid tenant ID: {tenant_id}")
-#         raise Exception("Invalid tenant ID")
-
-#     engine = get_sqlalchemy_async_engine()
-#     async_session_factory = sessionmaker(
-#         bind=engine, expire_on_commit=False, class_=AsyncSession
-#     )  # type: ignore
-
-#     async with async_session_factory() as session:
-#         try:
-#             await session.execute(text(f'SET search_path = "{tenant_id}"'))
-#             if POSTGRES_IDLE_SESSIONS_TIMEOUT:
-#                 await session.execute(
-#                     text(
-#                         f"SET SESSION idle_in_transaction_session_timeout = {POSTGRES_IDLE_SESSIONS_TIMEOUT}"
-#                     )
-#                 )
-#         except Exception:
-#             logger.exception("Error setting search_path.")
-#             raise
-#         else:
-#             yield session
-
-
 @contextmanager
 def get_session_with_default_tenant() -> Generator[Session, None, None]:
     tenant_id = CURRENT_TENANT_ID_CONTEXTVAR.get()
