@@ -60,7 +60,8 @@ export function extractCodeText(
   return codeText || "";
 }
 
-// This is a temporary solution to preprocess LaTeX in  LLM output
+// We must preprocess LaTeX in the LLM output to avoid math formatting
+// while skipping inline replacements if it appears to be purely numeric.
 export const preprocessLaTeX = (content: string) => {
   // Replace block-level LaTeX delimiters \[ \] with $$ $$
   const blockProcessedContent = content.replace(
