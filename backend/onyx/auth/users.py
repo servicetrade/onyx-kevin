@@ -46,7 +46,6 @@ from httpx_oauth.integrations.fastapi import OAuth2AuthorizeCallback
 from httpx_oauth.oauth2 import BaseOAuth2
 from httpx_oauth.oauth2 import OAuth2Token
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from onyx.auth.api_key import get_hashed_api_key_from_request
@@ -413,8 +412,6 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
                             existing_oauth_account,  # type: ignore
                             oauth_account_dict,
                         )
-
-                await db_session.execute(text(f'SET search_path = "{tenant_id}"'))
 
             # NOTE: Most IdPs have very short expiry times, and we don't want to force the user to
             # re-authenticate that frequently, so by default this is disabled

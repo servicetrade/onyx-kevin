@@ -376,14 +376,13 @@ async def get_async_session_with_tenant(
         @event.listens_for(session.sync_session, "after_begin")
         def after_begin(session_, transaction, connection):
             # Because the event is sync, we can't directly await here.
-            # Instead we queue up an asyncio task or do something that ensures
+            # Instead we queue up an asyncio task to ensures
             # the next statement sets the search_path
             session_.do_orm_execute = lambda state: connection.exec_driver_sql(
                 f'SET search_path = "{tenant_id}"'
             )
 
         try:
-            # Optionally do an initial SET search_path
             await _set_search_path(session, tenant_id)
 
             if POSTGRES_IDLE_SESSIONS_TIMEOUT:
