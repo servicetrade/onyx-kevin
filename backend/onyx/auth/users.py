@@ -622,7 +622,7 @@ class TenantAwareRedisStrategy(RedisStrategy[User, uuid.UUID]):
         return token
 
     async def read_token(
-        self, token: str, user_manager: BaseUserManager[User, uuid.UUID]
+        self, token: Optional[str], user_manager: BaseUserManager[User, uuid.UUID]
     ) -> Optional[User]:
         redis = await get_async_redis_connection()
         token_data_str = await redis.get(f"{self.key_prefix}{token}")
