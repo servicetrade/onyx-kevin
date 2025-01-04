@@ -56,6 +56,9 @@ async def _get_tenant_id_from_request(
             logger.debug(
                 "Token data not found or expired in Redis, defaulting to POSTGRES_DEFAULT_SCHEMA"
             )
+            # Return POSTGRES_DEFAULT_SCHEMA, which will  result in an authentication error
+            # The CURRENT_TENANT_ID_CONTEXTVAR is initialized with POSTGRES_DEFAULT_SCHEMA,
+            # so we maintain consistency by returning it here when no valid tenant is found.
             return POSTGRES_DEFAULT_SCHEMA
 
         tenant_id_from_payload = token_data.get("tenant_id", POSTGRES_DEFAULT_SCHEMA)
