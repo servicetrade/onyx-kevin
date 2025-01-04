@@ -59,6 +59,7 @@ from onyx.auth.schemas import UserUpdate
 from onyx.configs.app_configs import AUTH_TYPE
 from onyx.configs.app_configs import DISABLE_AUTH
 from onyx.configs.app_configs import EMAIL_CONFIGURED
+from onyx.configs.app_configs import REDIS_AUTH_EXPIRE_TIME_SECONDS
 from onyx.configs.app_configs import REDIS_AUTH_KEY_PREFIX
 from onyx.configs.app_configs import REQUIRE_EMAIL_VERIFICATION
 from onyx.configs.app_configs import SESSION_EXPIRE_TIME_SECONDS
@@ -582,7 +583,7 @@ cookie_transport = CookieTransport(
 
 
 def get_redis_strategy() -> RedisStrategy:
-    return TenantAwareRedisStrategy(lifetime_seconds=3600)
+    return TenantAwareRedisStrategy()
 
 
 class TenantAwareRedisStrategy(RedisStrategy[User, uuid.UUID]):
@@ -593,7 +594,7 @@ class TenantAwareRedisStrategy(RedisStrategy[User, uuid.UUID]):
 
     def __init__(
         self,
-        lifetime_seconds: Optional[int] = None,
+        lifetime_seconds: Optional[int] = REDIS_AUTH_EXPIRE_TIME_SECONDS,
         key_prefix: str = REDIS_AUTH_KEY_PREFIX,
     ):
         self.lifetime_seconds = lifetime_seconds

@@ -54,6 +54,10 @@ MASK_CREDENTIAL_PREFIX = (
     os.environ.get("MASK_CREDENTIAL_PREFIX", "True").lower() != "false"
 )
 
+REDIS_AUTH_EXPIRE_TIME_SECONDS = int(
+    os.environ.get("REDIS_AUTH_EXPIRE_TIME_SECONDS") or 3600
+)
+
 SESSION_EXPIRE_TIME_SECONDS = int(
     os.environ.get("SESSION_EXPIRE_TIME_SECONDS") or 86400 * 7
 )  # 7 days

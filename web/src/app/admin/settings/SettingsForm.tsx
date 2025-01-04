@@ -222,7 +222,7 @@ export function SettingsForm() {
       {!NEXT_PUBLIC_CLOUD_ENABLED && (
         <Checkbox
           label="Anonymous Users"
-          sublabel="If set, users will not be required to sign in to use Danswer."
+          sublabel="If set, users will not be required to sign in to use Onyx."
           checked={settings.anonymous_user_enabled}
           onChange={(e) =>
             handleToggleSettingsField(
