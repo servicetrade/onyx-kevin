@@ -366,7 +366,7 @@ async def get_async_session_with_tenant(
     engine = get_sqlalchemy_async_engine()
     async_session_factory = sessionmaker(
         bind=engine, expire_on_commit=False, class_=AsyncSession
-    )
+    )  # type: ignore
 
     async def _set_search_path(session: AsyncSession, tenant_id: str) -> None:
         await session.execute(text(f'SET search_path = "{tenant_id}"'))
@@ -374,7 +374,7 @@ async def get_async_session_with_tenant(
     async with async_session_factory() as session:
         # Register an event listener that is called whenever a new transaction starts
         @event.listens_for(session.sync_session, "after_begin")
-        def after_begin(session_, transaction, connection):
+        def after_begin(session_: Any, transaction: Any, connection: Any) -> None:
             # Because the event is sync, we can't directly await here.
             # Instead we queue up an asyncio task to ensures
             # the next statement sets the search_path
