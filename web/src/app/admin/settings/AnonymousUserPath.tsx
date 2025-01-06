@@ -1,14 +1,14 @@
 "use client";
 
 import useSWR from "swr";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { PopupSpec } from "@/components/admin/connectors/Popup";
 import { Button } from "@/components/ui/button";
 import { NEXT_PUBLIC_CLOUD_DOMAIN } from "@/lib/constants";
 import { ClipboardIcon } from "@/components/icons/icons";
 import { Input } from "@/components/ui/input";
-import { LoadingAnimation, ThreeDotsLoader } from "@/components/Loading";
+import { ThreeDotsLoader } from "@/components/Loading";
 
 export function AnonymousUserPath({
   setPopup,

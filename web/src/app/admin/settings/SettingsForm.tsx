@@ -11,12 +11,7 @@ import React, { useContext, useState, useEffect } from "react";
 import { SettingsContext } from "@/components/settings/SettingsProvider";
 import { usePaidEnterpriseFeaturesEnabled } from "@/components/settings/usePaidEnterpriseFeaturesEnabled";
 import { Modal } from "@/components/Modal";
-import {
-  NEXT_PUBLIC_CLOUD_DOMAIN,
-  NEXT_PUBLIC_CLOUD_ENABLED,
-} from "@/lib/constants";
-import { ClipboardIcon } from "@/components/icons/icons";
-import { Input } from "@/components/ui/input";
+import { NEXT_PUBLIC_CLOUD_ENABLED } from "@/lib/constants";
 import { AnonymousUserPath } from "./AnonymousUserPath";
 
 export function Checkbox({
