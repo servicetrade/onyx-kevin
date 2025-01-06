@@ -356,6 +356,7 @@ class VespaIndex(DocumentIndex):
                         http_client=http_client,
                     )
 
+                # If the document has previously indexed chunks, we know it previously existed
                 if doc_count or last_indexed_chunk:
                     existing_docs.add(document_id)
 
