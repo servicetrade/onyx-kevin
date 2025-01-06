@@ -33,6 +33,8 @@ from fastapi_users.authentication import AuthenticationBackend
 from fastapi_users.authentication import CookieTransport
 from fastapi_users.authentication import RedisStrategy
 from fastapi_users.authentication import Strategy
+from fastapi_users.authentication.strategy.db import AccessTokenDatabase
+from fastapi_users.authentication.strategy.db import DatabaseStrategy
 from fastapi_users.exceptions import UserAlreadyExists
 from fastapi_users.jwt import decode_jwt
 from fastapi_users.jwt import generate_jwt
@@ -75,6 +77,7 @@ from onyx.configs.constants import OnyxRedisLocks
 from onyx.configs.constants import PASSWORD_SPECIAL_CHARS
 from onyx.configs.constants import UNNAMED_KEY_PLACEHOLDER
 from onyx.db.api_key import fetch_user_for_api_key
+from onyx.db.auth import get_access_token_db
 from onyx.db.auth import get_default_admin_user_emails
 from onyx.db.auth import get_user_count
 from onyx.db.auth import get_user_db
@@ -82,6 +85,7 @@ from onyx.db.auth import SQLAlchemyUserAdminDB
 from onyx.db.engine import get_async_session
 from onyx.db.engine import get_async_session_with_tenant
 from onyx.db.engine import get_session_with_tenant
+from onyx.db.models import AccessToken
 from onyx.db.models import OAuthAccount
 from onyx.db.models import User
 from onyx.db.users import get_user_by_email
@@ -643,8 +647,18 @@ class TenantAwareRedisStrategy(RedisStrategy[User, uuid.UUID]):
         await redis.delete(f"{self.key_prefix}{token}")
 
 
+def get_database_strategy(
+    access_token_db: AccessTokenDatabase[AccessToken] = Depends(get_access_token_db),
+) -> DatabaseStrategy:
+    return DatabaseStrategy(
+        access_token_db, lifetime_seconds=SESSION_EXPIRE_TIME_SECONDS  # type: ignore
+    )
+
+
 auth_backend = AuthenticationBackend(
-    name="redis", transport=cookie_transport, get_strategy=get_redis_strategy
+    name="redis",
+    transport=cookie_transport,
+    get_strategy=get_redis_strategy if MULTI_TENANT else get_database_strategy,
 )
 
 
