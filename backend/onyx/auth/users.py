@@ -658,7 +658,7 @@ def get_database_strategy(
 auth_backend = AuthenticationBackend(
     name="redis",
     transport=cookie_transport,
-    get_strategy=get_redis_strategy if MULTI_TENANT else get_database_strategy,
+    get_strategy=get_redis_strategy if MULTI_TENANT else get_database_strategy,  # type: ignore
 )
 
 
