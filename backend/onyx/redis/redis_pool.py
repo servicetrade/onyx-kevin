@@ -235,7 +235,7 @@ async def get_async_redis_connection() -> aioredis.Redis:
             if _async_redis_connection is None:
                 # Load env vars or your config variables
 
-                connection_kwargs = {
+                connection_kwargs: dict[str, Any] = {
                     "host": REDIS_HOST,
                     "port": REDIS_PORT,
                     "db": REDIS_DB_NUMBER,

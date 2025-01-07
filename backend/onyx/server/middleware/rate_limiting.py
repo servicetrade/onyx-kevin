@@ -45,8 +45,8 @@ def get_auth_rate_limiters() -> List[Callable]:
     return [
         Depends(
             RateLimiter(
-                times=RATE_LIMIT_MAX_REQUESTS,
-                seconds=RATE_LIMIT_WINDOW_SECONDS,
+                times=RATE_LIMIT_MAX_REQUESTS or 100,
+                seconds=RATE_LIMIT_WINDOW_SECONDS or 60,
                 # Use the custom key function to distinguish users
                 identifier=rate_limit_key,
             )
