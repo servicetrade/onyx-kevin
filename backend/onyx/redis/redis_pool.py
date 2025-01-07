@@ -195,6 +195,16 @@ class RedisPool:
 redis_pool = RedisPool()
 
 
+# # Usage example
+# redis_pool = RedisPool()
+# redis_client = redis_pool.get_client()
+
+# # Example of setting and getting a value
+# redis_client.set('key', 'value')
+# value = redis_client.get('key')
+# print(value.decode())  # Output: 'value'
+
+
 def get_redis_client(*, tenant_id: str | None) -> Redis:
     return redis_pool.get_client(tenant_id)
 

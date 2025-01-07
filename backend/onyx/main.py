@@ -74,9 +74,9 @@ from onyx.server.manage.search_settings import router as search_settings_router
 from onyx.server.manage.slack_bot import router as slack_bot_management_router
 from onyx.server.manage.users import router as user_router
 from onyx.server.middleware.latency_logging import add_latency_logging_middleware
-from onyx.server.middleware.rate_limiting import close_limiter
+from onyx.server.middleware.rate_limiting import close_auth_limiter
 from onyx.server.middleware.rate_limiting import get_auth_rate_limiters
-from onyx.server.middleware.rate_limiting import setup_limiter
+from onyx.server.middleware.rate_limiting import setup_auth_limiter
 from onyx.server.onyx_api.ingestion import router as onyx_api_router
 from onyx.server.openai_assistants_api.full_openai_assistants_api import (
     get_full_openai_assistants_api_router,
@@ -216,12 +216,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     optional_telemetry(record_type=RecordType.VERSION, data={"version": __version__})
 
     # Set up rate limiter
-    await setup_limiter()
+    await setup_auth_limiter()
 
     yield
 
     # Close rate limiter
-    await close_limiter()
+    await close_auth_limiter()
 
 
 def log_http_error(_: Request, exc: Exception) -> JSONResponse:
