@@ -13,18 +13,12 @@ from onyx.redis.redis_pool import get_async_redis_connection
 
 
 async def setup_auth_limiter() -> None:
-    if not AUTH_RATE_LIMITING_ENABLED:
-        return
-
     # Use the centralized async Redis connection
     redis = await get_async_redis_connection()
     await FastAPILimiter.init(redis)
 
 
 async def close_auth_limiter() -> None:
-    if not AUTH_RATE_LIMITING_ENABLED:
-        return
-
     # This closes the FastAPILimiter connection so we don't leave open connections to Redis.
     await FastAPILimiter.close()
 

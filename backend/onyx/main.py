@@ -30,6 +30,7 @@ from onyx.auth.users import fastapi_users
 from onyx.configs.app_configs import APP_API_PREFIX
 from onyx.configs.app_configs import APP_HOST
 from onyx.configs.app_configs import APP_PORT
+from onyx.configs.app_configs import AUTH_RATE_LIMITING_ENABLED
 from onyx.configs.app_configs import AUTH_TYPE
 from onyx.configs.app_configs import DISABLE_GENERATIVE_AI
 from onyx.configs.app_configs import LOG_ENDPOINT_LATENCY
@@ -174,7 +175,7 @@ def include_auth_router_with_prefix(
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Set recursion limit
     if SYSTEM_RECURSION_LIMIT is not None:
         sys.setrecursionlimit(SYSTEM_RECURSION_LIMIT)
@@ -215,13 +216,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
     optional_telemetry(record_type=RecordType.VERSION, data={"version": __version__})
 
-    # Set up rate limiter
-    await setup_auth_limiter()
+    if AUTH_RATE_LIMITING_ENABLED:
+        await setup_auth_limiter()
 
     yield
 
-    # Close rate limiter
-    await close_auth_limiter()
+    if AUTH_RATE_LIMITING_ENABLED:
+        await close_auth_limiter()
 
 
 def log_http_error(_: Request, exc: Exception) -> JSONResponse:
