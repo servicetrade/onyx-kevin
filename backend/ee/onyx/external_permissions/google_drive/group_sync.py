@@ -87,7 +87,7 @@ def _build_onyx_groups(
         onyx_groups.append(
             ExternalUserGroup(
                 id=drive_id,
-                user_emails=all_member_emails,
+                user_emails=list(all_member_emails),
             )
         )
 
@@ -96,7 +96,7 @@ def _build_onyx_groups(
         onyx_groups.append(
             ExternalUserGroup(
                 id=group_email,
-                user_emails=member_emails,
+                user_emails=list(member_emails),
             )
         )
 
