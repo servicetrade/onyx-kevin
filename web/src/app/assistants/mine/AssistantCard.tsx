@@ -305,8 +305,7 @@ const AssistantCard: React.FC<{
                       );
                       await refreshUser();
                     }}
-                    className="hover:bg-neutral-100 px-2 py-1 gap-x-1 rounded border border-black flex items-center"
-                    style={{ width: "65px" }}
+                    className="hover:bg-neutral-100 px-2 py-1 gap-x-1 rounded border border-black flex items-center w-[65px]"
                   >
                     <PinnedIcon size={12} />
                     <p className="text-xs">{pinned ? "Unpin" : "Pin"}</p>
