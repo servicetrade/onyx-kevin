@@ -1,7 +1,7 @@
 """add pinned assistants
 
 Revision ID: aeda5f2df4f6
-Revises: 0f7ff6d75b57
+Revises: c5eae4a75a1b
 Create Date: 2025-01-09 16:04:10.770636
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "aeda5f2df4f6"
-down_revision = "0f7ff6d75b57"
+down_revision = "c5eae4a75a1b"
 branch_labels = None
 depends_on = None
 

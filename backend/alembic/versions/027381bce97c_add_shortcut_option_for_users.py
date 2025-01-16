@@ -20,7 +20,7 @@ def upgrade() -> None:
     op.add_column(
         "user",
         sa.Column(
-            "shortcut_enabled", sa.Boolean(), nullable=False, server_default="true"
+            "shortcut_enabled", sa.Boolean(), nullable=False, server_default="false"
         ),
     )
 
