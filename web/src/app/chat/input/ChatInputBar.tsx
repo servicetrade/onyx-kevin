@@ -26,7 +26,7 @@ import { Hoverable } from "@/components/Hoverable";
 import { ChatState } from "../types";
 import UnconfiguredProviderText from "@/components/chat_search/UnconfiguredProviderText";
 import { useAssistants } from "@/components/context/AssistantsContext";
-import { CalendarIcon, XIcon } from "lucide-react";
+import { CalendarIcon, TagIcon, XIcon } from "lucide-react";
 import { FilterPopup } from "@/components/search/filtering/FilterPopup";
 import { DocumentSet, Tag } from "@/lib/types";
 import { SourceIcon } from "@/components/SourceIcon";
@@ -532,6 +532,22 @@ export function ChatInputBar({
               filterManager.selectedSources.length > 0) && (
               <div className="flex gap-x-.5 px-2">
                 <div className="flex gap-x-1 px-2 overflow-visible overflow-x-scroll items-end miniscroll">
+                  {filterManager.selectedTags &&
+                    filterManager.selectedTags.map((tag, index) => (
+                      <SourceChip
+                        key={index}
+                        icon={<TagIcon size={12} />}
+                        title={`#${tag.tag_key}_${tag.tag_value}`}
+                        onRemove={() => {
+                          filterManager.setSelectedTags(
+                            filterManager.selectedTags.filter(
+                              (t) => t.tag_key !== tag.tag_key
+                            )
+                          );
+                        }}
+                      />
+                    ))}
+
                   {filterManager.timeRange && (
                     <SourceChip
                       truncateTitle={false}
@@ -615,19 +631,6 @@ export function ChatInputBar({
                         }}
                       />
                     ) : (
-                      // <InputBarPreviewImageProvider
-                      // <InputBarPreviewImageProvider
-                      //   key={`file-${index}`}
-                      //   file={file}
-                      //   onDelete={() => {
-                      //     setFiles(
-                      //       files.filter(
-                      //         (fileInFilter) => fileInFilter.id !== file.id
-                      //       )
-                      //     );
-                      //   }}
-                      //   isUploading={file.isUploading || false}
-                      // />
                       <SourceChip
                         key={`file-${index}`}
                         icon={<FileIcon className="text-red-500" size={16} />}
