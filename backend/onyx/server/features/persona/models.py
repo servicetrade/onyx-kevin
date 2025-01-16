@@ -52,7 +52,7 @@ class CreatePersonaRequest(BaseModel):
     is_default_persona: bool = False
     display_priority: int | None = None
     search_start_date: datetime | None = None
-    label_ids: list[int]
+    label_ids: list[int] | None = None
 
 
 class PersonaSnapshot(BaseModel):
