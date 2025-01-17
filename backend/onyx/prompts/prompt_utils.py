@@ -10,6 +10,7 @@ from onyx.configs.chat_configs import LANGUAGE_HINT
 from onyx.configs.constants import DocumentSource
 from onyx.context.search.models import InferenceChunk
 from onyx.db.models import Prompt
+from onyx.prompts.chat_prompts import ADDITIONAL_INFO
 from onyx.prompts.chat_prompts import CITATION_REMINDER
 from onyx.prompts.constants import CODE_BLOCK_PAT
 from onyx.utils.logger import setup_logger
@@ -37,9 +38,14 @@ def get_current_llm_day_time(
     return f"{formatted_datetime}"
 
 
-def handle_onyx_tags(
+def build_date_time_string() -> str:
+    return ADDITIONAL_INFO.format(datetime_info=get_current_llm_day_time())
+
+
+def handle_onyx_date_awareness(
     prompt_str: str,
-    datetime_aware: bool,
+    prompt_config: PromptConfig,
+    add_additional_info_if_no_tag: bool = False,
 ) -> str:
     """
     If there is a [[CURRENT_DATETIME]] tag, replace it with the current date and time no matter what.
@@ -47,17 +53,18 @@ def handle_onyx_tags(
     do nothing otherwise.
     This can later be expanded to support other tags.
     """
+
     if DANSWER_DATETIME_REPLACEMENT in prompt_str:
         return prompt_str.replace(
             DANSWER_DATETIME_REPLACEMENT,
             get_current_llm_day_time(full_sentence=False, include_day_of_week=True),
         )
-    if datetime_aware:
-        return (
-            MOST_BASIC_PROMPT
-            + " "
-            + BASIC_TIME_STR.format(datetime_info=get_current_llm_day_time())
-        )
+    any_tag_present = any(
+        DANSWER_DATETIME_REPLACEMENT in text
+        for text in [prompt_str, prompt_config.system_prompt, prompt_config.task_prompt]
+    )
+    if add_additional_info_if_no_tag and not any_tag_present:
+        return prompt_str + build_date_time_string()
     return prompt_str
 
 

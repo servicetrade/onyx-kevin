@@ -23,7 +23,7 @@ from onyx.prompts.direct_qa_prompts import CITATIONS_PROMPT_FOR_TOOL_CALLING
 from onyx.prompts.direct_qa_prompts import HISTORY_BLOCK
 from onyx.prompts.prompt_utils import build_complete_context_str
 from onyx.prompts.prompt_utils import build_task_prompt_reminders
-from onyx.prompts.prompt_utils import handle_onyx_tags
+from onyx.prompts.prompt_utils import handle_onyx_date_awareness
 from onyx.prompts.token_counts import ADDITIONAL_INFO_TOKEN_CNT
 from onyx.prompts.token_counts import (
     CHAT_USER_PROMPT_WITH_CONTEXT_OVERHEAD_TOKEN_CNT,
@@ -127,7 +127,9 @@ def build_citations_system_message(
     system_prompt = prompt_config.system_prompt.strip()
     if prompt_config.include_citations:
         system_prompt += REQUIRE_CITATION_STATEMENT
-    tag_handled_prompt = handle_onyx_tags(system_prompt, prompt_config.datetime_aware)
+    tag_handled_prompt = handle_onyx_date_awareness(
+        system_prompt, prompt_config, add_additional_info_if_no_tag=True
+    )
 
     return SystemMessage(content=tag_handled_prompt)
 

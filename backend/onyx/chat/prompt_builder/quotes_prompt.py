@@ -10,7 +10,7 @@ from onyx.prompts.direct_qa_prompts import CONTEXT_BLOCK
 from onyx.prompts.direct_qa_prompts import HISTORY_BLOCK
 from onyx.prompts.direct_qa_prompts import JSON_PROMPT
 from onyx.prompts.prompt_utils import build_complete_context_str
-from onyx.prompts.prompt_utils import handle_onyx_tags
+from onyx.prompts.prompt_utils import handle_onyx_date_awareness
 
 
 def _build_strong_llm_quotes_prompt(
@@ -39,7 +39,9 @@ def _build_strong_llm_quotes_prompt(
         language_hint_or_none=LANGUAGE_HINT.strip() if use_language_hint else "",
     ).strip()
 
-    tag_handled_prompt = handle_onyx_tags(full_prompt, prompt.datetime_aware)
+    tag_handled_prompt = handle_onyx_date_awareness(
+        full_prompt, prompt, add_additional_info_if_no_tag=True
+    )
 
     return HumanMessage(content=tag_handled_prompt)
 
