@@ -274,7 +274,7 @@ class SlackbotHandler:
                 ex=TENANT_LOCK_EXPIRATION,
             )
             if not acquired and not DEV_MODE:
-                logger.debugg(
+                logger.debug(
                     f"Another pod holds the lock for tenant {tenant_id}, skipping."
                 )
                 continue
@@ -337,7 +337,7 @@ class SlackbotHandler:
                         logger.info(
                             f"Tenant {tenant_id} no longer has Slack bots. Removing."
                         )
-                        self._remove_tenant(tenant_id, redis_client)
+                        self._remove_tenant(tenant_id)
                         if not DEV_MODE:
                             redis_client.delete(OnyxRedisLocks.SLACK_BOT_LOCK)
 
