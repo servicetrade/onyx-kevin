@@ -101,14 +101,14 @@ def _get_permissions_from_slim_doc(
 
     company_domain = google_drive_connector.google_domain
     user_emails: set[str] = set()
-    group_names: set[str] = set()
+    group_emails: set[str] = set()
     public = False
     for permission in permissions_list:
         permission_type = permission["type"]
         if permission_type == "user":
             user_emails.add(permission["emailAddress"])
         elif permission_type == "group":
-            group_names.add(permission["emailAddress"])
+            group_emails.add(permission["emailAddress"])
         elif permission_type == "domain" and company_domain:
             if permission.get("domain") == company_domain:
                 public = True
@@ -120,12 +120,12 @@ def _get_permissions_from_slim_doc(
         elif permission_type == "anyone":
             public = True
 
-    if parent_drive_id := permission_info.get("drive_id"):
-        group_names.add(parent_drive_id)
+    drive_id = permission_info.get("drive_id")
+    group_ids = group_emails | ({drive_id} if drive_id is not None else set())
 
     return ExternalAccess(
         external_user_emails=user_emails,
-        external_user_group_ids=group_names,
+        external_user_group_ids=group_ids,
         is_public=public,
     )
 

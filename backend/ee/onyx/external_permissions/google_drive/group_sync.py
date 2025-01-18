@@ -16,7 +16,7 @@ def _get_drive_members(
     """
     This builds a map of drive ids to their members (group and user emails).
     E.g. {
-        "drive_id_1": ({"group_email_1", "group_email_2"}, {"user_email_1", "user_email_2"}),
+        "drive_id_1": ({"group_email_1"}, {"user_email_1", "user_email_2"}),
         "drive_id_2": ({"group_email_3"}, {"user_email_3"}),
     }
     """
@@ -64,7 +64,7 @@ def _get_all_groups(
     return group_emails
 
 
-def _map_group_to_members(
+def _map_group_email_to_member_emails(
     admin_service: AdminService,
     group_emails: set[str],
 ) -> dict[str, set[str]]:
@@ -88,7 +88,7 @@ def _map_group_to_members(
 
 def _build_onyx_groups(
     drive_id_to_members_map: dict[str, tuple[set[str], set[str]]],
-    group_to_members_map: dict[str, set[str]],
+    group_email_to_member_emails_map: dict[str, set[str]],
 ) -> list[ExternalUserGroup]:
     onyx_groups: list[ExternalUserGroup] = []
 
@@ -98,7 +98,7 @@ def _build_onyx_groups(
     for drive_id, (group_emails, user_emails) in drive_id_to_members_map.items():
         all_member_emails: set[str] = user_emails
         for group_email in group_emails:
-            all_member_emails.update(group_to_members_map[group_email])
+            all_member_emails.update(group_email_to_member_emails_map[group_email])
         onyx_groups.append(
             ExternalUserGroup(
                 id=drive_id,
@@ -107,7 +107,7 @@ def _build_onyx_groups(
         )
 
     # Convert all group member definitions to onyx groups
-    for group_email, member_emails in group_to_members_map.items():
+    for group_email, member_emails in group_email_to_member_emails_map.items():
         onyx_groups.append(
             ExternalUserGroup(
                 id=group_email,
@@ -139,12 +139,14 @@ def gdrive_group_sync(
     )
 
     # Map group emails to their members
-    group_to_members_map = _map_group_to_members(admin_service, all_group_emails)
+    group_email_to_member_emails_map = _map_group_email_to_member_emails(
+        admin_service, all_group_emails
+    )
 
     # Convert the maps to onyx groups
     onyx_groups = _build_onyx_groups(
         drive_id_to_members_map=drive_id_to_members_map,
-        group_to_members_map=group_to_members_map,
+        group_email_to_member_emails_map=group_email_to_member_emails_map,
     )
 
     return onyx_groups
