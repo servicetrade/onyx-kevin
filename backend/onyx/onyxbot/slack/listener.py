@@ -186,6 +186,11 @@ class SlackbotHandler:
     def _manage_clients_per_tenant(
         self, db_session: Session, tenant_id: str | None, bot: SlackBot
     ) -> None:
+        """
+        - If the tokens are missing or empty, close the socket client and remove them.
+        - If the tokens have changed, close the existing socket client and reconnect.
+        - If the tokens are new, warm up the model and start a new socket client.
+        """
         slack_bot_tokens = SlackBotTokens(
             bot_token=bot.bot_token,
             app_token=bot.app_token,
@@ -236,6 +241,7 @@ class SlackbotHandler:
         - If acquired, check if that tenant actually has Slack bots.
         - If yes, store them in self.tenant_ids and manage the socket connections.
         - If a tenant in self.tenant_ids no longer has Slack bots, remove it and release lock.
+        We do this to minimize the number of pods spun up to manage tenants.
         """
         all_tenants = get_all_tenant_ids()
 
@@ -268,7 +274,7 @@ class SlackbotHandler:
                 ex=TENANT_LOCK_EXPIRATION,
             )
             if not acquired and not DEV_MODE:
-                logger.debug(
+                logger.debugg(
                     f"Another pod holds the lock for tenant {tenant_id}, skipping."
                 )
                 continue
@@ -331,7 +337,10 @@ class SlackbotHandler:
                         logger.info(
                             f"Tenant {tenant_id} no longer has Slack bots. Removing."
                         )
-                        self._remove_tenant(tenant_id)
+                        self._remove_tenant(tenant_id, redis_client)
+                        if not DEV_MODE:
+                            redis_client.delete(OnyxRedisLocks.SLACK_BOT_LOCK)
+
                     else:
                         # Manage or reconnect Slack bot sockets
                         for bot in bots:
@@ -345,30 +354,24 @@ class SlackbotHandler:
 
     def _remove_tenant(self, tenant_id: str | None) -> None:
         """
-        Helper to remove a tenant from `self.tenant_ids`, close any socket clients,
-        and release the lock (if not in DEV_MODE).
+        Helper to remove a tenant from `self.tenant_ids` anns close any socket clients,
         """
-        if tenant_id not in self.tenant_ids:
-            return
 
         # Close all socket clients for this tenant
-        for (tenant_id, slack_bot_id), client in list(self.socket_clients.items()):
-            if tenant_id == tenant_id:
+        for (t_id, slack_bot_id), client in list(self.socket_clients.items()):
+            if t_id == tenant_id:
                 asyncio.run(client.close())
-                del self.socket_clients[(tenant_id, slack_bot_id)]
-                del self.slack_bot_tokens[(tenant_id, slack_bot_id)]
+                del self.socket_clients[(t_id, slack_bot_id)]
+                del self.slack_bot_tokens[(t_id, slack_bot_id)]
                 logger.info(
-                    f"Stopped SocketModeClient for tenant: {tenant_id}, app: {slack_bot_id}"
+                    f"Stopped SocketModeClient for tenant: {t_id}, app: {slack_bot_id}"
                 )
 
         # Remove from active set
         self.tenant_ids.remove(tenant_id)
 
-        # Release the lock if not in dev mode
-        if not DEV_MODE:
-            redis_client = get_redis_client(tenant_id=tenant_id)
-            redis_client.delete(OnyxRedisLocks.SLACK_BOT_LOCK)
-            logger.info(f"Released lock for tenant {tenant_id}")
+        logger.info(f"Released lock for tenant {tenant_id}")
+        ""
 
     def send_heartbeats(self) -> None:
         current_time = int(time.time())
