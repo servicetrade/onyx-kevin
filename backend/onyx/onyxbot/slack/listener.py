@@ -14,6 +14,7 @@ from typing import Set
 
 from prometheus_client import Gauge
 from prometheus_client import start_http_server
+from redis.lock import Lock
 from slack_sdk import WebClient
 from slack_sdk.socket_mode.request import SocketModeRequest
 from slack_sdk.socket_mode.response import SocketModeResponse
@@ -121,6 +122,9 @@ class SlackbotHandler:
         # The keys for these dictionaries are tuples of (tenant_id, slack_bot_id)
         self.socket_clients: Dict[tuple[str | None, int], TenantSocketModeClient] = {}
         self.slack_bot_tokens: Dict[tuple[str | None, int], SlackBotTokens] = {}
+
+        # Store Redis lock objects here so we can release them properly
+        self.redis_locks: Dict[str | None, Lock] = {}
 
         self.running = True
         self.pod_id = self.get_pod_id()
@@ -237,11 +241,10 @@ class SlackbotHandler:
 
     def acquire_tenants(self) -> None:
         """
-        - Attempt to acquire a lock for each tenant.
+        - Attempt to acquire a Redis lock for each tenant.
         - If acquired, check if that tenant actually has Slack bots.
         - If yes, store them in self.tenant_ids and manage the socket connections.
-        - If a tenant in self.tenant_ids no longer has Slack bots, remove it and release lock.
-        We do this to minimize the number of pods spun up to manage tenants.
+        - If a tenant in self.tenant_ids no longer has Slack bots, remove it and release the lock.
         """
         all_tenants = get_all_tenant_ids()
 
@@ -266,22 +269,28 @@ class SlackbotHandler:
                 break
 
             redis_client = get_redis_client(tenant_id=tenant_id)
-            pod_id = self.pod_id
-            acquired = redis_client.set(
-                OnyxRedisLocks.SLACK_BOT_LOCK,
-                pod_id,
-                nx=True,
-                ex=TENANT_LOCK_EXPIRATION,
+            # Acquire a Redis lock (non-blocking)
+            rlock = redis_client.lock(
+                OnyxRedisLocks.SLACK_BOT_LOCK, timeout=TENANT_LOCK_EXPIRATION
             )
-            if not acquired and not DEV_MODE:
+            lock_acquired = rlock.acquire(blocking=False)
+
+            if not lock_acquired and not DEV_MODE:
                 logger.debug(
                     f"Another pod holds the lock for tenant {tenant_id}, skipping."
                 )
                 continue
 
-            logger.debug(f"Acquired lock for tenant {tenant_id}.")
+            if lock_acquired:
+                logger.debug(f"Acquired lock for tenant {tenant_id}.")
+                self.redis_locks[tenant_id] = rlock
+            else:
+                # DEV_MODE will skip the lock acquisition guard
+                logger.debug(
+                    f"Running in DEV_MODE. Not enforcing lock for {tenant_id}."
+                )
 
-            # Now check if this tenant actually has Slack bots before adding to self.tenant_ids
+            # Now check if this tenant actually has Slack bots
             token = CURRENT_TENANT_ID_CONTEXTVAR.set(
                 tenant_id or POSTGRES_DEFAULT_SCHEMA
             )
@@ -307,11 +316,13 @@ class SlackbotHandler:
                                 tenant_id=tenant_id,
                                 bot=bot,
                             )
-                    elif not DEV_MODE:
-                        # If no Slack bots, release lock immediately
-                        redis_client.delete(OnyxRedisLocks.SLACK_BOT_LOCK)
+                    else:
+                        # If no Slack bots, release lock immediately (unless in DEV_MODE)
+                        if lock_acquired and not DEV_MODE:
+                            rlock.release()
+                            del self.redis_locks[tenant_id]
                         logger.debug(
-                            f"No Slack bots for tenant {tenant_id}; lock released."
+                            f"No Slack bots for tenant {tenant_id}; lock released (if held)."
                         )
             finally:
                 CURRENT_TENANT_ID_CONTEXTVAR.reset(token)
@@ -321,6 +332,8 @@ class SlackbotHandler:
             token = CURRENT_TENANT_ID_CONTEXTVAR.set(
                 tenant_id or POSTGRES_DEFAULT_SCHEMA
             )
+            redis_client = get_redis_client(tenant_id=tenant_id)
+
             try:
                 with get_session_with_tenant(tenant_id) as db_session:
                     # Attempt to fetch Slack bots
@@ -338,9 +351,6 @@ class SlackbotHandler:
                             f"Tenant {tenant_id} no longer has Slack bots. Removing."
                         )
                         self._remove_tenant(tenant_id)
-                        if not DEV_MODE:
-                            redis_client.delete(OnyxRedisLocks.SLACK_BOT_LOCK)
-
                     else:
                         # Manage or reconnect Slack bot sockets
                         for bot in bots:
@@ -354,9 +364,9 @@ class SlackbotHandler:
 
     def _remove_tenant(self, tenant_id: str | None) -> None:
         """
-        Helper to remove a tenant from `self.tenant_ids` anns close any socket clients,
+        Helper to remove a tenant from `self.tenant_ids` and close any socket clients,
+        then release the Redis lock if we hold it.
         """
-
         # Close all socket clients for this tenant
         for (t_id, slack_bot_id), client in list(self.socket_clients.items()):
             if t_id == tenant_id:
@@ -368,10 +378,18 @@ class SlackbotHandler:
                 )
 
         # Remove from active set
-        self.tenant_ids.remove(tenant_id)
+        if tenant_id in self.tenant_ids:
+            self.tenant_ids.remove(tenant_id)
 
-        logger.info(f"Released lock for tenant {tenant_id}")
-        ""
+        # Release the lock if we hold it
+        if tenant_id in self.redis_locks and not DEV_MODE:
+            try:
+                self.redis_locks[tenant_id].release()
+                logger.info(f"Released lock for tenant {tenant_id}")
+            except Exception as e:
+                logger.error(f"Error releasing lock for tenant {tenant_id}: {e}")
+            finally:
+                del self.redis_locks[tenant_id]
 
     def send_heartbeats(self) -> None:
         current_time = int(time.time())
@@ -429,15 +447,17 @@ class SlackbotHandler:
         logger.info(f"Stopping {len(self.socket_clients)} socket clients")
         self.stop_socket_clients()
 
-        # Release locks for all tenants
+        # Release locks for all tenants we currently hold
         logger.info(f"Releasing locks for {len(self.tenant_ids)} tenants")
-        for tenant_id in self.tenant_ids:
-            try:
-                redis_client = get_redis_client(tenant_id=tenant_id)
-                redis_client.delete(OnyxRedisLocks.SLACK_BOT_LOCK)
-                logger.info(f"Released lock for tenant {tenant_id}")
-            except Exception as e:
-                logger.error(f"Error releasing lock for tenant {tenant_id}: {e}")
+        for tenant_id in list(self.tenant_ids):
+            if tenant_id in self.redis_locks:
+                try:
+                    self.redis_locks[tenant_id].release()
+                    logger.info(f"Released lock for tenant {tenant_id}")
+                except Exception as e:
+                    logger.error(f"Error releasing lock for tenant {tenant_id}: {e}")
+                finally:
+                    del self.redis_locks[tenant_id]
 
         # Wait for background threads to finish (with a timeout)
         logger.info("Waiting for background threads to finish...")
