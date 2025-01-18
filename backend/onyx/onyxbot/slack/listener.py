@@ -244,7 +244,7 @@ class SlackbotHandler:
         - Attempt to acquire a Redis lock for each tenant.
         - If acquired, check if that tenant actually has Slack bots.
         - If yes, store them in self.tenant_ids and manage the socket connections.
-        - If a tenant in self.tenant_ids no longer has Slack bots, remove it and release the lock.
+        - If a tenant in self.tenant_ids no longer has Slack bots, remove it (and release the lock in this scope).
         """
         all_tenants = get_all_tenant_ids()
 
@@ -351,6 +351,17 @@ class SlackbotHandler:
                             f"Tenant {tenant_id} no longer has Slack bots. Removing."
                         )
                         self._remove_tenant(tenant_id)
+
+                        # IMPORTANT: Release the lock here (in the same scope it was acquired)
+                        if tenant_id in self.redis_locks and not DEV_MODE:
+                            try:
+                                self.redis_locks[tenant_id].release()
+                                del self.redis_locks[tenant_id]
+                                logger.info(f"Released lock for tenant {tenant_id}")
+                            except Exception as e:
+                                logger.error(
+                                    f"Error releasing lock for tenant {tenant_id}: {e}"
+                                )
                     else:
                         # Manage or reconnect Slack bot sockets
                         for bot in bots:
@@ -364,8 +375,8 @@ class SlackbotHandler:
 
     def _remove_tenant(self, tenant_id: str | None) -> None:
         """
-        Helper to remove a tenant from `self.tenant_ids` and close any socket clients,
-        then release the Redis lock if we hold it.
+        Helper to remove a tenant from `self.tenant_ids` and close any socket clients.
+        (Lock release now happens in `acquire_tenants()`, not here.)
         """
         # Close all socket clients for this tenant
         for (t_id, slack_bot_id), client in list(self.socket_clients.items()):
@@ -380,16 +391,6 @@ class SlackbotHandler:
         # Remove from active set
         if tenant_id in self.tenant_ids:
             self.tenant_ids.remove(tenant_id)
-
-        # Release the lock if we hold it
-        if tenant_id in self.redis_locks and not DEV_MODE:
-            try:
-                self.redis_locks[tenant_id].release()
-                logger.info(f"Released lock for tenant {tenant_id}")
-            except Exception as e:
-                logger.error(f"Error releasing lock for tenant {tenant_id}: {e}")
-            finally:
-                del self.redis_locks[tenant_id]
 
     def send_heartbeats(self) -> None:
         current_time = int(time.time())
