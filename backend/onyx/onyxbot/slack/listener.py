@@ -352,7 +352,7 @@ class SlackbotHandler:
                         )
                         self._remove_tenant(tenant_id)
 
-                        # IMPORTANT: Release the lock here (in the same scope it was acquired)
+                        # NOTE: We release the lock here (in the same scope it was acquired)
                         if tenant_id in self.redis_locks and not DEV_MODE:
                             try:
                                 self.redis_locks[tenant_id].release()
