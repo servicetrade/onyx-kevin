@@ -19,9 +19,8 @@ from onyx.utils.logger import setup_logger
 logger = setup_logger()
 
 
-MOST_BASIC_PROMPT = "You are a helpful AI assistant."
-DANSWER_DATETIME_REPLACEMENT = "[[CURRENT_DATETIME]]"
-BASIC_TIME_STR = "The current date is {datetime_info}."
+_DANSWER_DATETIME_REPLACEMENT_PAT = "[[CURRENT_DATETIME]]"
+_BASIC_TIME_STR = "The current date is {datetime_info}."
 
 
 def get_current_llm_day_time(
@@ -39,7 +38,9 @@ def get_current_llm_day_time(
 
 
 def build_date_time_string() -> str:
-    return ADDITIONAL_INFO.format(datetime_info=get_current_llm_day_time())
+    return ADDITIONAL_INFO.format(
+        datetime_info=_BASIC_TIME_STR.format(datetime_info=get_current_llm_day_time())
+    )
 
 
 def handle_onyx_date_awareness(
@@ -54,13 +55,13 @@ def handle_onyx_date_awareness(
     This can later be expanded to support other tags.
     """
 
-    if DANSWER_DATETIME_REPLACEMENT in prompt_str:
+    if _DANSWER_DATETIME_REPLACEMENT_PAT in prompt_str:
         return prompt_str.replace(
-            DANSWER_DATETIME_REPLACEMENT,
+            _DANSWER_DATETIME_REPLACEMENT_PAT,
             get_current_llm_day_time(full_sentence=False, include_day_of_week=True),
         )
     any_tag_present = any(
-        DANSWER_DATETIME_REPLACEMENT in text
+        _DANSWER_DATETIME_REPLACEMENT_PAT in text
         for text in [prompt_str, prompt_config.system_prompt, prompt_config.task_prompt]
     )
     if add_additional_info_if_no_tag and not any_tag_present:
