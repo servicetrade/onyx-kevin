@@ -468,14 +468,11 @@ def reset_tenant_id(
     CURRENT_TENANT_ID_CONTEXTVAR.set(POSTGRES_DEFAULT_SCHEMA)
 
 
-def wait_for_vespa(wait_interval: int = 5, wait_limit: int = 60) -> None:
+def wait_for_vespa(sender: Any, **kwargs: Any) -> None:
     """Waits for Vespa to become ready subject to a timeout.
     Raises WorkerShutdown if the timeout is reached."""
 
-    if not wait_for_vespa_internal(wait_interval, wait_limit):
-        msg = (
-            f"Vespa: Readiness probe did not succeed within the timeout "
-            f"({wait_limit} seconds). Exiting..."
-        )
+    if not wait_for_vespa_internal():
+        msg = "Vespa: Readiness probe did not succeed within the timeout. Exiting..."
         logger.error(msg)
         raise WorkerShutdown(msg)
