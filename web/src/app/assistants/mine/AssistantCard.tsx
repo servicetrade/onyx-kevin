@@ -319,7 +319,8 @@ const AssistantCard: React.FC<{
                   <div
                     onClick={async () => {
                       await toggleAssistantPinnedStatus(
-                        user?.preferences.pinned_assistants || [],
+                        user?.preferences.pinned_assistants ||
+                          pinnedAssistants.map((a) => a.id),
                         persona.id,
                         !pinned
                       );
