@@ -88,7 +88,7 @@ class IndexAttemptManager:
         user_performing_action: DATestUser | None = None,
     ) -> PaginatedReturn[IndexAttemptSnapshot]:
         query_params: dict[str, str | int] = {
-            "page": page,
+            "page_num": page,
             "page_size": page_size,
         }
 
