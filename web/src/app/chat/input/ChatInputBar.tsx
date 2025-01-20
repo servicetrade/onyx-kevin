@@ -739,7 +739,7 @@ export function ChatInputBar({
                   ) : (
                     <SendIcon
                       size={26}
-                      className={`text-emphasis text-white p-1 rounded-full ${
+                      className={`text-emphasis text-white p-1 my-auto rounded-full ${
                         chatState == "input" && message
                           ? "bg-submit-background"
                           : "bg-disabled-submit-background"
