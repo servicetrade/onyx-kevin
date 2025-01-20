@@ -98,10 +98,10 @@ def get_page_of_chat_sessions(
     conditions = _build_filter_conditions(start_time, end_time, feedback_filter)
 
     subquery = (
-        select(ChatSession.id, ChatSession.time_created)
+        select(ChatSession.time_created, ChatSession.id)
         .filter(*conditions)
-        .order_by(ChatSession.id, desc(ChatSession.time_created))
-        .distinct(ChatSession.id)
+        .order_by(desc(ChatSession.time_created), ChatSession.id)
+        .distinct(ChatSession.time_created, ChatSession.id)
         .limit(page_size)
         .offset(page_num * page_size)
         .subquery()
@@ -118,7 +118,7 @@ def get_page_of_chat_sessions(
                 ChatMessage.chat_message_feedbacks
             ),
         )
-        .order_by(desc(ChatSession.time_created), asc(ChatMessage.id))
+        .order_by(desc(ChatSession.time_created), ChatSession.id)
     )
 
     return db_session.scalars(stmt).unique().all()
