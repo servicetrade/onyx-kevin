@@ -8,7 +8,7 @@ from onyx.configs.app_configs import MANAGED_VESPA
 from onyx.configs.app_configs import VESPA_CLOUD_CERT_PATH
 from onyx.configs.app_configs import VESPA_CLOUD_KEY_PATH
 from onyx.configs.app_configs import VESPA_REQUEST_TIMEOUT
-from onyx.document_index.vespa_constants import VESPA_CONFIG_SERVER_URL
+from onyx.document_index.vespa_constants import VESPA_APP_CONTAINER_URL
 from onyx.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -76,7 +76,7 @@ def get_vespa_http_client(no_timeout: bool = False, http2: bool = True) -> httpx
     )
 
 
-def wait_for_vespa(wait_interval: int = 5, wait_limit: int = 60) -> bool:
+def wait_for_vespa_with_timeout(wait_interval: int = 5, wait_limit: int = 60) -> bool:
     """Waits for Vespa to become ready subject to a timeout.
     Returns True if Vespa is ready, False otherwise."""
 
@@ -85,7 +85,7 @@ def wait_for_vespa(wait_interval: int = 5, wait_limit: int = 60) -> bool:
     while True:
         try:
             client = get_vespa_http_client()
-            response = client.get(f"{VESPA_CONFIG_SERVER_URL}/state/v1/health")
+            response = client.get(f"{VESPA_APP_CONTAINER_URL}/state/v1/health")
             response.raise_for_status()
 
             response_dict = response.json()

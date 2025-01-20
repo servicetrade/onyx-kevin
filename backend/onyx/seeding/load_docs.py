@@ -26,7 +26,7 @@ from onyx.db.index_attempt import mock_successful_index_attempt
 from onyx.db.search_settings import get_current_search_settings
 from onyx.document_index.factory import get_default_document_index
 from onyx.document_index.interfaces import IndexBatchParams
-from onyx.document_index.vespa.shared_utils.utils import wait_for_vespa
+from onyx.document_index.vespa.shared_utils.utils import wait_for_vespa_with_timeout
 from onyx.indexing.indexing_pipeline import index_doc_batch_prepare
 from onyx.indexing.models import ChunkEmbedding
 from onyx.indexing.models import DocMetadataAwareIndexChunk
@@ -218,7 +218,7 @@ def seed_initial_documents(
 
     # Retries here because the index may take a few seconds to become ready
     # as we just sent over the Vespa schema and there is a slight delay
-    if not wait_for_vespa():
+    if not wait_for_vespa_with_timeout():
         logger.error("Vespa did not become ready within the timeout")
         raise ValueError("Vespa failed to become ready within the timeout")
 
