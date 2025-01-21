@@ -18,10 +18,9 @@ def _verify_index_attempt_pagination(
     last_time_started = None  # Track the last time_started seen
 
     for i in range(0, len(index_attempts), page_size):
-        page = (i // page_size) + 1  # Convert to 1-based page numbers
         paginated_result = IndexAttemptManager.get_index_attempt_page(
             cc_pair_id=cc_pair_id,
-            page=page,
+            page=(i // page_size),
             page_size=page_size,
             user_performing_action=user_performing_action,
         )

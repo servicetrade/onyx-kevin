@@ -83,7 +83,7 @@ class IndexAttemptManager:
     @staticmethod
     def get_index_attempt_page(
         cc_pair_id: int,
-        page: int = 1,
+        page: int = 0,
         page_size: int = 10,
         user_performing_action: DATestUser | None = None,
     ) -> PaginatedReturn[IndexAttemptSnapshot]:
