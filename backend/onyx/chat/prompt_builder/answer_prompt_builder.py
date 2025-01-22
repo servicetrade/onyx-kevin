@@ -32,7 +32,9 @@ def default_build_system_message(
 ) -> SystemMessage | None:
     system_prompt = prompt_config.system_prompt.strip()
     tag_handled_prompt = handle_onyx_date_awareness(
-        system_prompt, prompt_config, add_additional_info_if_no_tag=True
+        system_prompt,
+        prompt_config,
+        add_additional_info_if_no_tag=prompt_config.datetime_aware,
     )
 
     if not tag_handled_prompt:
