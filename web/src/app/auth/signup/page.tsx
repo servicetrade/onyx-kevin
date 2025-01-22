@@ -60,7 +60,6 @@ const Page = async (props: {
     return redirect("/chat");
   }
 
-  console.log(authTypeMetadata);
   let authUrl: string | null = null;
   if (cloud && authTypeMetadata) {
     authUrl = await getAuthUrlSS(authTypeMetadata.authType, null);
