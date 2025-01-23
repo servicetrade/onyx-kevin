@@ -26,6 +26,7 @@ from onyx.db.models import DocumentSet
 from onyx.db.models import IndexAttempt
 from onyx.db.models import SyncRecord
 from onyx.db.models import UserGroup
+from onyx.db.search_settings import get_active_search_settings
 from onyx.redis.redis_pool import get_redis_client
 from onyx.utils.telemetry import optional_telemetry
 from onyx.utils.telemetry import RecordType
@@ -162,7 +163,6 @@ def _build_connector_start_latency_metric(
     # Connector start latency
     # first run case - we should start as soon as it's created
     if not second_most_recent_attempt:
-        task_logger.info("No second most recent attempt, using connector creation time")
         desired_start_time = cc_pair.connector.time_created
     else:
         if not cc_pair.connector.refresh_freq:
@@ -172,23 +172,15 @@ def _build_connector_start_latency_metric(
             )
             return None
 
-        task_logger.info(
-            "Using second most recent attempt time: "
-            f"{second_most_recent_attempt.time_updated} with id: {second_most_recent_attempt.id}"
-        )
-        task_logger.info(
-            f"Using connector refresh freq: {cc_pair.connector.refresh_freq}"
-        )
         desired_start_time = second_most_recent_attempt.time_updated + timedelta(
             seconds=cc_pair.connector.refresh_freq
         )
 
-    task_logger.info(f"Desired start time: {desired_start_time}")
-
     start_latency = (recent_attempt.time_started - desired_start_time).total_seconds()
 
     task_logger.info(
-        f"Calculated start latency for index attempt {recent_attempt.id}: {start_latency} seconds"
+        f"Calculated start latency for index attempt {recent_attempt.id}: {start_latency} seconds, "
+        f"desired start time: {desired_start_time}, recent attempt time: {recent_attempt.time_started}"
     )
 
     return Metric(
@@ -247,26 +239,29 @@ def _collect_connector_metrics(db_session: Session, redis_std: Redis) -> list[Me
     # Get all connector credential pairs
     cc_pairs = db_session.scalars(select(ConnectorCredentialPair)).all()
 
+    active_search_settings = get_active_search_settings(db_session)
     metrics = []
-    for cc_pair in cc_pairs:
-        # Get all attempts in the last hour
+
+    for cc_pair, search_settings in zip(cc_pairs, active_search_settings):
         recent_attempts = (
             db_session.query(IndexAttempt)
-            .filter(IndexAttempt.connector_credential_pair_id == cc_pair.id)
+            .filter(
+                IndexAttempt.connector_credential_pair_id == cc_pair.id,
+                IndexAttempt.search_settings_id == search_settings.id,
+            )
             .order_by(IndexAttempt.time_created.desc())
             .limit(2)
             .all()
         )
-        most_recent_attempt = recent_attempts[0] if recent_attempts else None
+        if not recent_attempts:
+            continue
+
+        most_recent_attempt = recent_attempts[0]
         second_most_recent_attempt = (
             recent_attempts[1] if len(recent_attempts) > 1 else None
         )
 
-        # if no metric to emit, skip
-        if (
-            most_recent_attempt is None
-            or one_hour_ago > most_recent_attempt.time_created
-        ):
+        if one_hour_ago > most_recent_attempt.time_created:
             continue
 
         # Connector start latency
