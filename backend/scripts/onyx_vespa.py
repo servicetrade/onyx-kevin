@@ -41,7 +41,7 @@ from onyx.document_index.vespa_constants import VESPA_APPLICATION_ENDPOINT
 
 
 # Print Vespa configuration URLs
-def print_vespa_config():
+def print_vespa_config() -> None:
     print(f"Vespa Application Endpoint: {VESPA_APPLICATION_ENDPOINT}")
     print(f"Vespa App Container URL: {VESPA_APP_CONTAINER_URL}")
     print(f"Vespa Search Endpoint: {SEARCH_ENDPOINT}")
@@ -49,7 +49,7 @@ def print_vespa_config():
 
 
 # Check connectivity to Vespa endpoints
-def check_vespa_connectivity():
+def check_vespa_connectivity() -> None:
     endpoints = [
         f"{VESPA_APPLICATION_ENDPOINT}/ApplicationStatus",
         f"{VESPA_APPLICATION_ENDPOINT}/tenant",
@@ -161,7 +161,7 @@ def delete_document(tenant_id: str, connector_id: int, doc_id: str) -> None:
 
 
 # List documents from any source
-def list_documents(n: int = 10):
+def list_documents(n: int = 10) -> None:
     yql = f"select * from sources * where true limit {n};"
     url = f"{VESPA_APP_CONTAINER_URL}/search/"
     params = {
@@ -193,7 +193,7 @@ def get_document_acls(tenant_id: str, connector_id: int, n: int = 10) -> None:
         print("-" * 80)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Vespa debugging tool")
     parser.add_argument(
         "--action",

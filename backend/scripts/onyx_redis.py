@@ -46,6 +46,8 @@ def get_user_id(user_email: str) -> tuple[UUID, str]:
 
     with get_session_with_tenant(tenant_id) as session:
         user = get_user_by_email(user_email, session)
+        if user is None:
+            raise ValueError(f"User not found for email: {user_email}")
         return user.id, tenant_id
 
 
@@ -194,13 +196,16 @@ def get_user_token_from_redis(r: Redis, user_email: str) -> str | None:
             continue
 
         try:
-            if isinstance(jwt_token, bytes):
-                jwt_token = jwt_token.decode("utf-8")
+            jwt_token_str = (
+                jwt_token.decode("utf-8")
+                if isinstance(jwt_token, bytes)
+                else str(jwt_token)
+            )
 
-            if jwt_token.startswith("b'") and jwt_token.endswith("'"):
-                jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
+            if jwt_token_str.startswith("b'") and jwt_token_str.endswith("'"):
+                jwt_token_str = jwt_token_str[2:-1]  # Remove b'' wrapper
 
-            jwt_data = json.loads(jwt_token)
+            jwt_data = json.loads(jwt_token_str)
             if jwt_data.get("tenant_id") == tenant_id and str(
                 jwt_data.get("sub")
             ) == str(user_id):
@@ -237,13 +242,16 @@ def delete_user_token_from_redis(
             continue
 
         try:
-            if isinstance(jwt_token, bytes):
-                jwt_token = jwt_token.decode("utf-8")
+            jwt_token_str = (
+                jwt_token.decode("utf-8")
+                if isinstance(jwt_token, bytes)
+                else str(jwt_token)
+            )
 
-            if jwt_token.startswith("b'") and jwt_token.endswith("'"):
-                jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
+            if jwt_token_str.startswith("b'") and jwt_token_str.endswith("'"):
+                jwt_token_str = jwt_token_str[2:-1]  # Remove b'' wrapper
 
-            jwt_data = json.loads(jwt_token)
+            jwt_data = json.loads(jwt_token_str)
             if jwt_data.get("tenant_id") == tenant_id and str(
                 jwt_data.get("sub")
             ) == str(user_id):
