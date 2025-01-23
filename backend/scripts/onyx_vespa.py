@@ -7,7 +7,6 @@ Usage:
 Actions:
   config      : Print Vespa configuration
   connect     : Check Vespa connectivity
-  list_apps   : List Vespa applications
   list_docs   : List documents
   search      : Search documents
   update      : Update a document
@@ -69,20 +68,6 @@ def check_vespa_connectivity():
             print(f"Failed to connect to Vespa at {endpoint}: {str(e)}")
 
     print("Vespa connectivity check completed.")
-
-
-# List all Vespa applications
-def list_vespa_applications():
-    url = f"{VESPA_APPLICATION_ENDPOINT}/tenant"
-    try:
-        with get_vespa_http_client() as client:
-            response = client.get(url)
-            response.raise_for_status()
-            applications = response.json()
-            print("Vespa Applications:")
-            print(json.dumps(applications, indent=2))
-    except Exception as e:
-        print(f"Failed to list Vespa applications: {str(e)}")
 
 
 # Get info about the default Vespa application
@@ -215,7 +200,6 @@ def main():
         choices=[
             "config",
             "connect",
-            "list_apps",
             "list_docs",
             "search",
             "update",
@@ -251,8 +235,6 @@ def main():
         print_vespa_config()
     elif args.action == "connect":
         check_vespa_connectivity()
-    elif args.action == "list_apps":
-        list_vespa_applications()
     elif args.action == "list_docs":
         # If tenant_id and connector_id are provided, list docs for that tenant/connector.
         # Otherwise, list documents from any source.
