@@ -184,30 +184,35 @@ def get_user_token_from_redis(r: Redis, user_email: str) -> str | None:
     # Scan for keys matching the auth key prefix
     auth_keys = r.scan_iter(f"{REDIS_AUTH_KEY_PREFIX}*", count=SCAN_ITER_COUNT)
 
+    matching_key = None
+
     for key in auth_keys:
         key_str = key.decode("utf-8")
         jwt_token = r.get(key_str)
 
-        if jwt_token:
-            try:
-                if isinstance(jwt_token, bytes):
-                    jwt_token = jwt_token.decode("utf-8")
+        if not jwt_token:
+            continue
 
-                if jwt_token.startswith("b'") and jwt_token.endswith("'"):
-                    jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
+        try:
+            if isinstance(jwt_token, bytes):
+                jwt_token = jwt_token.decode("utf-8")
 
-                jwt_data = json.loads(jwt_token)
-                if jwt_data.get("tenant_id") == tenant_id and str(
-                    jwt_data.get("sub")
-                ) == str(user_id):
-                    return key_str[len(REDIS_AUTH_KEY_PREFIX) :]
-            except json.JSONDecodeError:
-                logger.error(f"Failed to decode JSON for key: {key_str}")
-            except Exception as e:
-                logger.error(
-                    f"Error processing JWT for key: {key_str}. Error: {str(e)}"
-                )
+            if jwt_token.startswith("b'") and jwt_token.endswith("'"):
+                jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
 
+            jwt_data = json.loads(jwt_token)
+            if jwt_data.get("tenant_id") == tenant_id and str(
+                jwt_data.get("sub")
+            ) == str(user_id):
+                matching_key = key_str
+                break
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode JSON for key: {key_str}")
+        except Exception as e:
+            logger.error(f"Error processing JWT for key: {key_str}. Error: {str(e)}")
+
+    if matching_key:
+        return matching_key[len(REDIS_AUTH_KEY_PREFIX) :]
     return None
 
 
@@ -222,38 +227,43 @@ def delete_user_token_from_redis(
 
     # Scan for keys matching the auth key prefix
     auth_keys = r.scan_iter(f"{REDIS_AUTH_KEY_PREFIX}*", count=SCAN_ITER_COUNT)
+    matching_key = None
 
     for key in auth_keys:
         key_str = key.decode("utf-8")
         jwt_token = r.get(key_str)
 
-        if jwt_token:
-            try:
-                if isinstance(jwt_token, bytes):
-                    jwt_token = jwt_token.decode("utf-8")
+        if not jwt_token:
+            continue
 
-                if jwt_token.startswith("b'") and jwt_token.endswith("'"):
-                    jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
+        try:
+            if isinstance(jwt_token, bytes):
+                jwt_token = jwt_token.decode("utf-8")
 
-                jwt_data = json.loads(jwt_token)
-                if jwt_data.get("tenant_id") == tenant_id and str(
-                    jwt_data.get("sub")
-                ) == str(user_id):
-                    if dry_run:
-                        logger.info(f"(DRY-RUN) Would delete token key: {key_str}")
-                    else:
-                        r.delete(key_str)
-                        logger.info(f"Deleted token for user: {user_email}")
-                    return True
-            except json.JSONDecodeError:
-                logger.error(f"Failed to decode JSON for key: {key_str}")
-            except Exception as e:
-                logger.error(
-                    f"Error processing JWT for key: {key_str}. Error: {str(e)}"
-                )
+            if jwt_token.startswith("b'") and jwt_token.endswith("'"):
+                jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
 
-    logger.info(f"No token found for user: {user_email}")
-    return False
+            jwt_data = json.loads(jwt_token)
+            if jwt_data.get("tenant_id") == tenant_id and str(
+                jwt_data.get("sub")
+            ) == str(user_id):
+                matching_key = key_str
+                break
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode JSON for key: {key_str}")
+        except Exception as e:
+            logger.error(f"Error processing JWT for key: {key_str}. Error: {str(e)}")
+
+    if matching_key:
+        if dry_run:
+            logger.info(f"(DRY-RUN) Would delete token key: {matching_key}")
+        else:
+            r.delete(matching_key)
+            logger.info(f"Deleted token for user: {user_email}")
+        return True
+    else:
+        logger.info(f"No token found for user: {user_email}")
+        return False
 
 
 if __name__ == "__main__":
