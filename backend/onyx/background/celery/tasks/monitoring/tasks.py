@@ -179,10 +179,9 @@ def _build_connector_start_latency_metric(
     start_latency = (recent_attempt.time_started - desired_start_time).total_seconds()
 
     task_logger.info(
-        f"Calculated start latency for index attempt {recent_attempt.id}: {start_latency} seconds, "
-        f"desired start time: {desired_start_time}, recent attempt time: {recent_attempt.time_started}"
+        f"Start latency for index attempt {recent_attempt.id}: {start_latency:.2f}s "
+        f"(desired: {desired_start_time}, actual: {recent_attempt.time_started})"
     )
-
     return Metric(
         key=metric_key,
         name="connector_start_latency",
