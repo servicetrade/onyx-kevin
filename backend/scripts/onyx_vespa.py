@@ -41,19 +41,16 @@ from onyx.document_index.vespa_constants import VESPA_APP_CONTAINER_URL
 from onyx.document_index.vespa_constants import VESPA_APPLICATION_ENDPOINT
 
 
+# Print Vespa configuration URLs
 def print_vespa_config():
-    """Prints the Vespa configuration URLs."""
     print(f"Vespa Application Endpoint: {VESPA_APPLICATION_ENDPOINT}")
     print(f"Vespa App Container URL: {VESPA_APP_CONTAINER_URL}")
     print(f"Vespa Search Endpoint: {SEARCH_ENDPOINT}")
     print(f"Vespa Document ID Endpoint: {DOCUMENT_ID_ENDPOINT}")
 
 
+# Check connectivity to Vespa endpoints
 def check_vespa_connectivity():
-    """
-    Checks connectivity to several Vespa endpoints and prints the status
-    code and a snippet of the response.
-    """
     endpoints = [
         f"{VESPA_APPLICATION_ENDPOINT}/ApplicationStatus",
         f"{VESPA_APPLICATION_ENDPOINT}/tenant",
@@ -74,8 +71,8 @@ def check_vespa_connectivity():
     print("Vespa connectivity check completed.")
 
 
+# List all Vespa applications
 def list_vespa_applications():
-    """Lists all Vespa applications."""
     url = f"{VESPA_APPLICATION_ENDPOINT}/tenant"
     try:
         with get_vespa_http_client() as client:
@@ -88,14 +85,8 @@ def list_vespa_applications():
         print(f"Failed to list Vespa applications: {str(e)}")
 
 
+# Get info about the default Vespa application
 def get_vespa_info() -> Dict[str, Any]:
-    """
-    Retrieves information about the default Vespa application.
-
-    Returns:
-        A dictionary with the JSON response containing information about
-        the default application.
-    """
     url = f"{VESPA_APPLICATION_ENDPOINT}/tenant/default/application/default"
     with get_vespa_http_client() as client:
         response = client.get(url)
@@ -103,17 +94,8 @@ def get_vespa_info() -> Dict[str, Any]:
         return response.json()
 
 
+# Get index name for a tenant and connector pair
 def get_index_name(tenant_id: str, connector_id: int) -> str:
-    """
-    Retrieves the index name for a given tenant and connector pair.
-
-    Args:
-        tenant_id: The tenant's ID.
-        connector_id: The connector's ID.
-
-    Returns:
-        The index name (e.g., "public" or a custom index name).
-    """
     with get_session_with_tenant(tenant_id=tenant_id) as db_session:
         cc_pair = get_connector_credential_pair_from_id(db_session, connector_id)
         if not cc_pair:
@@ -122,16 +104,8 @@ def get_index_name(tenant_id: str, connector_id: int) -> str:
         return search_settings.index_name if search_settings else "public"
 
 
+# Perform a Vespa query using YQL syntax
 def query_vespa(yql: str) -> List[Dict[str, Any]]:
-    """
-    Performs a Vespa query using YQL syntax.
-
-    Args:
-        yql: The YQL query string.
-
-    Returns:
-        A list of documents (dictionaries) returned by Vespa.
-    """
     params = {
         "yql": yql,
         "timeout": "10s",
@@ -142,61 +116,33 @@ def query_vespa(yql: str) -> List[Dict[str, Any]]:
         return response.json()["root"]["children"]
 
 
+# Get first N documents
 def get_first_n_documents(n: int = 10) -> List[Dict[str, Any]]:
-    """
-    Retrieves the first N documents by running a simple 'select all' query.
-
-    Args:
-        n: The number of documents to retrieve.
-
-    Returns:
-        A list of the first N document dictionaries.
-    """
     yql = f"select * from sources * where true limit {n};"
     return query_vespa(yql)
 
 
+# Pretty-print a list of documents
 def print_documents(documents: List[Dict[str, Any]]) -> None:
-    """
-    Pretty-prints a list of documents.
-
-    Args:
-        documents: The list of document dictionaries to print.
-    """
     for doc in documents:
         print(json.dumps(doc, indent=2))
         print("-" * 80)
 
 
+# Get and print documents for a specific tenant and connector
 def get_documents_for_tenant_connector(
     tenant_id: str, connector_id: int, n: int = 10
 ) -> None:
-    """
-    Retrieves and prints the first N documents for a specific tenant and connector.
-
-    Args:
-        tenant_id: The tenant's ID.
-        connector_id: The connector's ID.
-        n: The number of documents to retrieve.
-    """
     get_index_name(tenant_id, connector_id)
     documents = get_first_n_documents(n)
     print(f"First {n} documents for tenant {tenant_id}, connector {connector_id}:")
     print_documents(documents)
 
 
+# Search documents for a specific tenant and connector
 def search_documents(
     tenant_id: str, connector_id: int, query: str, n: int = 10
 ) -> None:
-    """
-    Performs a search query against a specific tenant and connector, printing the results.
-
-    Args:
-        tenant_id: The tenant's ID.
-        connector_id: The connector's ID.
-        query: The search query string.
-        n: The number of results to retrieve.
-    """
     index_name = get_index_name(tenant_id, connector_id)
     yql = f"select * from sources {index_name} where userInput(@query) limit {n};"
     documents = query_vespa(yql)
@@ -204,18 +150,10 @@ def search_documents(
     print_documents(documents)
 
 
+# Update a specific document
 def update_document(
     tenant_id: str, connector_id: int, doc_id: str, fields: Dict[str, Any]
 ) -> None:
-    """
-    Updates a specific document with new field values.
-
-    Args:
-        tenant_id: The tenant's ID.
-        connector_id: The connector's ID.
-        doc_id: The document ID.
-        fields: A dictionary of field names and values to update.
-    """
     index_name = get_index_name(tenant_id, connector_id)
     url = DOCUMENT_ID_ENDPOINT.format(index_name=index_name) + f"/{doc_id}"
     update_request = {"fields": {k: {"assign": v} for k, v in fields.items()}}
@@ -226,15 +164,8 @@ def update_document(
         print(f"Document {doc_id} updated successfully")
 
 
+# Delete a specific document
 def delete_document(tenant_id: str, connector_id: int, doc_id: str) -> None:
-    """
-    Deletes a specific document.
-
-    Args:
-        tenant_id: The tenant's ID.
-        connector_id: The connector's ID.
-        doc_id: The document ID.
-    """
     index_name = get_index_name(tenant_id, connector_id)
     url = DOCUMENT_ID_ENDPOINT.format(index_name=index_name) + f"/{doc_id}"
 
@@ -244,13 +175,8 @@ def delete_document(tenant_id: str, connector_id: int, doc_id: str) -> None:
         print(f"Document {doc_id} deleted successfully")
 
 
+# List documents from any source
 def list_documents(n: int = 10):
-    """
-    Retrieves and prints the first N documents from any source.
-
-    Args:
-        n: The number of documents to retrieve.
-    """
     yql = f"select * from sources * where true limit {n};"
     url = f"{VESPA_APP_CONTAINER_URL}/search/"
     params = {
@@ -268,16 +194,8 @@ def list_documents(n: int = 10):
         print(f"Failed to list documents: {str(e)}")
 
 
+# Get and print ACLs for documents of a specific tenant and connector
 def get_document_acls(tenant_id: str, connector_id: int, n: int = 10) -> None:
-    """
-    Retrieves and prints Access Control Lists (ACLs) for documents belonging
-    to a specific tenant and connector.
-
-    Args:
-        tenant_id: The tenant's ID.
-        connector_id: The connector's ID.
-        n: The number of documents to retrieve.
-    """
     index_name = get_index_name(tenant_id, connector_id)
     yql = f"select documentid, access_control_list from sources {index_name} where true limit {n};"
     documents = query_vespa(yql)
@@ -328,8 +246,6 @@ def main():
     )
 
     args = parser.parse_args()
-
-    print(f"Debug: tenant_id = {args.tenant_id}, connector_id = {args.connector_id}")
 
     if args.action == "config":
         print_vespa_config()

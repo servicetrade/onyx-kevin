@@ -22,7 +22,6 @@ from onyx.redis.redis_pool import RedisPool
 from shared_configs.configs import MULTI_TENANT
 from shared_configs.configs import POSTGRES_DEFAULT_SCHEMA
 
-# Import necessary modules
 # Tool to run helpful operations on Redis in production
 # This is targeted for internal usage and may not have all the necessary parameters
 # for general usage across custom deployments
