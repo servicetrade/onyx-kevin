@@ -1,20 +1,31 @@
-# Tool to run helpful operations on Redis in production
-# This is targeted for internal usage and may not have all the necessary parameters
-# for general usage across custom deployments
 import argparse
+import json
 import logging
 import sys
 import time
 from logging import getLogger
 from typing import cast
+from uuid import UUID
 
 from redis import Redis
 
+from ee.onyx.server.tenants.user_mapping import get_tenant_id_for_email
+from onyx.configs.app_configs import REDIS_AUTH_KEY_PREFIX
 from onyx.configs.app_configs import REDIS_DB_NUMBER
 from onyx.configs.app_configs import REDIS_HOST
 from onyx.configs.app_configs import REDIS_PASSWORD
 from onyx.configs.app_configs import REDIS_PORT
+from onyx.configs.app_configs import REDIS_SSL
+from onyx.db.engine import get_session_with_tenant
+from onyx.db.users import get_user_by_email
 from onyx.redis.redis_pool import RedisPool
+from shared_configs.configs import MULTI_TENANT
+from shared_configs.configs import POSTGRES_DEFAULT_SCHEMA
+
+# Import necessary modules
+# Tool to run helpful operations on Redis in production
+# This is targeted for internal usage and may not have all the necessary parameters
+# for general usage across custom deployments
 
 # Configure the logger
 logging.basicConfig(
@@ -29,6 +40,16 @@ SCAN_ITER_COUNT = 10000
 BATCH_DEFAULT = 1000
 
 
+def get_user_id(user_email: str) -> tuple[UUID, str]:
+    tenant_id = (
+        get_tenant_id_for_email(user_email) if MULTI_TENANT else POSTGRES_DEFAULT_SCHEMA
+    )
+
+    with get_session_with_tenant(tenant_id) as session:
+        user = get_user_by_email(user_email, session)
+        return user.id, tenant_id
+
+
 def onyx_redis(
     command: str,
     batch: int,
@@ -37,13 +58,14 @@ def onyx_redis(
     port: int,
     db: int,
     password: str | None,
+    user_email: str | None = None,
 ) -> int:
     pool = RedisPool.create_pool(
         host=host,
         port=port,
         db=db,
         password=password if password else "",
-        ssl=True,
+        ssl=REDIS_SSL,
         ssl_cert_reqs="optional",
         ssl_ca_certs=None,
     )
@@ -72,6 +94,25 @@ def onyx_redis(
         return purge_by_match_and_type(
             "*connectorsync:vespa_syncing*", "string", batch, dry_run, r
         )
+    elif command == "get_user_token":
+        if not user_email:
+            logger.error("You must specify --user-email with get_user_token")
+            return 1
+        token_key = get_user_token_from_redis(r, user_email)
+        if token_key:
+            print(f"Token key for user {user_email}: {token_key}")
+            return 0
+        else:
+            print(f"No token found for user {user_email}")
+            return 2
+    elif command == "delete_user_token":
+        if not user_email:
+            logger.error("You must specify --user-email with delete_user_token")
+            return 1
+        if delete_user_token_from_redis(r, user_email, dry_run):
+            return 0
+        else:
+            return 2
     else:
         pass
 
@@ -134,6 +175,88 @@ def purge_by_match_and_type(
     return 0
 
 
+def get_user_token_from_redis(r: Redis, user_email: str) -> str | None:
+    """
+    Scans Redis keys for a user token that matches user_email or user_id fields.
+    Returns the token key if found, else None.
+    """
+    user_id, tenant_id = get_user_id(user_email)
+
+    # Scan for keys matching the auth key prefix
+    auth_keys = r.scan_iter(f"{REDIS_AUTH_KEY_PREFIX}*", count=SCAN_ITER_COUNT)
+
+    for key in auth_keys:
+        key_str = key.decode("utf-8")
+        jwt_token = r.get(key_str)
+
+        if jwt_token:
+            try:
+                if isinstance(jwt_token, bytes):
+                    jwt_token = jwt_token.decode("utf-8")
+
+                if jwt_token.startswith("b'") and jwt_token.endswith("'"):
+                    jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
+
+                jwt_data = json.loads(jwt_token)
+                if jwt_data.get("tenant_id") == tenant_id and str(
+                    jwt_data.get("sub")
+                ) == str(user_id):
+                    return key_str[len(REDIS_AUTH_KEY_PREFIX) :]
+            except json.JSONDecodeError:
+                logger.error(f"Failed to decode JSON for key: {key_str}")
+            except Exception as e:
+                logger.error(
+                    f"Error processing JWT for key: {key_str}. Error: {str(e)}"
+                )
+
+    return None
+
+
+def delete_user_token_from_redis(
+    r: Redis, user_email: str, dry_run: bool = False
+) -> bool:
+    """
+    Scans Redis keys for a user token matching user_email and deletes it if found.
+    Returns True if something was deleted, otherwise False.
+    """
+    user_id, tenant_id = get_user_id(user_email)
+
+    # Scan for keys matching the auth key prefix
+    auth_keys = r.scan_iter(f"{REDIS_AUTH_KEY_PREFIX}*", count=SCAN_ITER_COUNT)
+
+    for key in auth_keys:
+        key_str = key.decode("utf-8")
+        jwt_token = r.get(key_str)
+
+        if jwt_token:
+            try:
+                if isinstance(jwt_token, bytes):
+                    jwt_token = jwt_token.decode("utf-8")
+
+                if jwt_token.startswith("b'") and jwt_token.endswith("'"):
+                    jwt_token = jwt_token[2:-1]  # Remove b'' wrapper
+
+                jwt_data = json.loads(jwt_token)
+                if jwt_data.get("tenant_id") == tenant_id and str(
+                    jwt_data.get("sub")
+                ) == str(user_id):
+                    if dry_run:
+                        logger.info(f"(DRY-RUN) Would delete token key: {key_str}")
+                    else:
+                        r.delete(key_str)
+                        logger.info(f"Deleted token for user: {user_email}")
+                    return True
+            except json.JSONDecodeError:
+                logger.error(f"Failed to decode JSON for key: {key_str}")
+            except Exception as e:
+                logger.error(
+                    f"Error processing JWT for key: {key_str}. Error: {str(e)}"
+                )
+
+    logger.info(f"No token found for user: {user_email}")
+    return False
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Onyx Redis Manager")
     parser.add_argument("--command", type=str, help="Operation to run", required=True)
@@ -185,6 +308,13 @@ if __name__ == "__main__":
         required=False,
     )
 
+    parser.add_argument(
+        "--user-email",
+        type=str,
+        help="User email for get or delete user token",
+        required=False,
+    )
+
     args = parser.parse_args()
     exitcode = onyx_redis(
         command=args.command,
@@ -194,5 +324,6 @@ if __name__ == "__main__":
         port=args.port,
         db=args.db,
         password=args.password,
+        user_email=args.user_email,
     )
     sys.exit(exitcode)
