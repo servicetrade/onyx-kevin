@@ -271,7 +271,6 @@ class ConfluenceConnector(LoadConnector, PollConnector, SlimConnector):
         confluence_page_ids: list[str] = []
 
         page_query = self._construct_page_query(start, end)
-        print(f"page_query: {page_query}")
         logger.debug(f"page_query: {page_query}")
         # Fetch pages as Documents
         for page in self.confluence_client.paginated_cql_retrieval(
