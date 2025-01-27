@@ -216,7 +216,6 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = USER_AUTH_SECRET
     verification_token_secret = USER_AUTH_SECRET
     verification_token_lifetime_seconds = AUTH_COOKIE_EXPIRE_TIME_SECONDS
-
     user_db: SQLAlchemyUserDatabase[User, uuid.UUID]
 
     async def create(

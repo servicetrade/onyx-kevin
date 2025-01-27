@@ -159,9 +159,9 @@ export function UserDropdown({
             >
               {user && user.email ? user.email[0].toUpperCase() : "A"}
             </div>
-            {/* {notifications && notifications.length > 0 && ( */}
-            <div className="absolute -right-0.5 -top-0.5 w-3 h-3 bg-red-500 rounded-full"></div>
-            {/* )} */}
+            {notifications && notifications.length > 0 && (
+              <div className="absolute -right-0.5 -top-0.5 w-3 h-3 bg-red-500 rounded-full"></div>
+            )}
           </div>
         }
         popover={
