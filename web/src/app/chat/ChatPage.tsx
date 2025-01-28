@@ -203,6 +203,16 @@ export function ChatPage({
 
   const [showHistorySidebar, setShowHistorySidebar] = useState(false); // State to track if sidebar is open
 
+  const existingChatSessionId = existingChatIdRaw ? existingChatIdRaw : null;
+
+  const selectedChatSession = chatSessions.find(
+    (chatSession) => chatSession.id === existingChatSessionId
+  );
+  const llmOverrideManager = useLlmOverride(
+    llmProviders,
+    user?.preferences.default_model,
+    selectedChatSession
+  );
   useEffect(() => {
     if (user?.is_anonymous_user) {
       Cookies.set(
@@ -239,12 +249,6 @@ export function ChatPage({
       onSubmit({ messageOverride: message, overrideFileDescriptors });
     }
   };
-
-  const existingChatSessionId = existingChatIdRaw ? existingChatIdRaw : null;
-
-  const selectedChatSession = chatSessions.find(
-    (chatSession) => chatSession.id === existingChatSessionId
-  );
 
   const chatSessionIdRef = useRef<string | null>(existingChatSessionId);
 
@@ -293,12 +297,6 @@ export function ChatPage({
     );
   };
 
-  const llmOverrideManager = useLlmOverride(
-    llmProviders,
-    user?.preferences.default_model,
-    selectedChatSession
-  );
-
   const [alternativeAssistant, setAlternativeAssistant] =
     useState<Persona | null>(null);
 
@@ -336,7 +334,7 @@ export function ChatPage({
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveAssistant, user?.preferences.default_model]);
+  }, [selectedChatSession, liveAssistant, user?.preferences.default_model]);
 
   const stopGenerating = () => {
     const currentSession = currentSessionId();
@@ -2749,6 +2747,7 @@ export function ChatPage({
                                 </button>
                               </div>
                             )}
+
                             <ChatInputBar
                               toggleDocumentSidebar={toggleDocumentSidebar}
                               availableSources={sources}

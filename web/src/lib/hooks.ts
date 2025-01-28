@@ -13,7 +13,11 @@ import { errorHandlingFetcher } from "./fetcher";
 import { useContext, useEffect, useState } from "react";
 import { DateRangePickerValue } from "@/app/ee/admin/performance/DateRangeSelector";
 import { Filters, SourceMetadata } from "./search/interfaces";
-import { destructureValue, structureValue } from "./llm/utils";
+import {
+  destructureValue,
+  findProviderForModel,
+  structureValue,
+} from "./llm/utils";
 import { ChatSession } from "@/app/chat/interfaces";
 import { AllUsersResponse } from "./types";
 import { Credential } from "./connectors/credentials";
@@ -385,6 +389,7 @@ export function useLlmOverride(
     }
     return { name: "", provider: "", modelName: "" };
   };
+
   const [imageFilesPresent, setImageFilesPresent] = useState(false);
 
   const updateImageFilesPresent = (present: boolean) => {
@@ -395,15 +400,16 @@ export function useLlmOverride(
     getValidLlmOverride(globalModel)
   );
   const updateLLMOverride = (newOverride: LlmOverride) => {
-    setLlmOverride(
-      getValidLlmOverride(
-        structureValue(
-          newOverride.name,
-          newOverride.provider,
-          newOverride.modelName
-        )
-      )
+    const provider =
+      newOverride.provider ||
+      findProviderForModel(llmProviders, newOverride.modelName);
+    const structuredValue = structureValue(
+      newOverride.name,
+      provider,
+      newOverride.modelName
     );
+    const validLLMOverride = getValidLlmOverride(structuredValue);
+    setLlmOverride(validLLMOverride);
   };
 
   const [llmOverride, setLlmOverride] = useState<LlmOverride>(
@@ -413,11 +419,9 @@ export function useLlmOverride(
   );
 
   const updateModelOverrideForChatSession = (chatSession?: ChatSession) => {
-    setLlmOverride(
-      chatSession && chatSession.current_alternate_model
-        ? getValidLlmOverride(chatSession.current_alternate_model)
-        : globalDefault
-    );
+    if (chatSession && chatSession.current_alternate_model?.length > 0) {
+      setLlmOverride(getValidLlmOverride(chatSession.current_alternate_model));
+    }
   };
 
   const [temperature, setTemperature] = useState<number | null>(
