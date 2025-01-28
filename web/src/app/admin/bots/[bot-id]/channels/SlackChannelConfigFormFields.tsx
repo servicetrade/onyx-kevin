@@ -383,9 +383,9 @@ export function SlackChannelConfigFormFields({
             <BooleanFormField
               name="still_need_help_enabled"
               removeIndent
-              onChange={(e) => {
-                setFieldValue("still_need_help_enabled", e.target.checked);
-                if (!e.target.checked) {
+              onChange={(checked: boolean) => {
+                setFieldValue("still_need_help_enabled", checked);
+                if (!checked) {
                   setFieldValue("follow_up_tags", []);
                 }
               }}

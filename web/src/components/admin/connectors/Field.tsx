@@ -443,6 +443,7 @@ interface BooleanFormFieldProps {
   optional?: boolean;
   tooltip?: string;
   disabledTooltip?: string;
+  onChange?: (checked: boolean) => void;
 }
 
 export const BooleanFormField = ({
@@ -456,6 +457,7 @@ export const BooleanFormField = ({
   disabled,
   tooltip,
   disabledTooltip,
+  onChange,
 }: BooleanFormFieldProps) => {
   const { setFieldValue } = useFormikContext<any>();
 
@@ -464,8 +466,11 @@ export const BooleanFormField = ({
       if (!disabled) {
         setFieldValue(name, checked);
       }
+      if (onChange) {
+        onChange(checked === true);
+      }
     },
-    [disabled, name, setFieldValue]
+    [disabled, name, setFieldValue, onChange]
   );
 
   return (
