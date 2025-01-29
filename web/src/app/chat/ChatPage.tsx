@@ -208,11 +208,7 @@ export function ChatPage({
   const selectedChatSession = chatSessions.find(
     (chatSession) => chatSession.id === existingChatSessionId
   );
-  const llmOverrideManager = useLlmOverride(
-    llmProviders,
-    user?.preferences.default_model,
-    selectedChatSession
-  );
+
   useEffect(() => {
     if (user?.is_anonymous_user) {
       Cookies.set(
@@ -305,36 +301,33 @@ export function ChatPage({
 
   const { recentAssistants, refreshRecentAssistants } = useAssistants();
 
-  const liveAssistant: Persona | undefined =
-    alternativeAssistant ||
-    selectedAssistant ||
-    recentAssistants[0] ||
-    finalAssistants[0] ||
-    availableAssistants[0];
+  const liveAssistant: Persona | undefined = useMemo(
+    () =>
+      alternativeAssistant ||
+      selectedAssistant ||
+      recentAssistants[0] ||
+      finalAssistants[0] ||
+      availableAssistants[0],
+    [
+      alternativeAssistant,
+      selectedAssistant,
+      recentAssistants,
+      finalAssistants,
+      availableAssistants,
+    ]
+  );
+
+  const llmOverrideManager = useLlmOverride(
+    llmProviders,
+    selectedChatSession,
+    liveAssistant
+  );
 
   const noAssistants = liveAssistant == null || liveAssistant == undefined;
 
   const availableSources = ccPairs.map((ccPair) => ccPair.source);
   const uniqueSources = Array.from(new Set(availableSources));
   const sources = uniqueSources.map((source) => getSourceMetadata(source));
-
-  // always set the model override for the chat session, when an assistant, llm provider, or user preference exists
-  useEffect(() => {
-    if (noAssistants) return;
-    const personaDefault = getLLMProviderOverrideForPersona(
-      liveAssistant,
-      llmProviders
-    );
-
-    if (personaDefault) {
-      llmOverrideManager.updateLLMOverride(personaDefault);
-    } else if (user?.preferences.default_model) {
-      llmOverrideManager.updateLLMOverride(
-        destructureValue(user?.preferences.default_model)
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChatSession, liveAssistant, user?.preferences.default_model]);
 
   const stopGenerating = () => {
     const currentSession = currentSessionId();
@@ -417,7 +410,6 @@ export function ChatPage({
       filterManager.setTimeRange(null);
 
       // reset LLM overrides (based on chat session!)
-      llmOverrideManager.updateModelOverrideForChatSession(selectedChatSession);
       llmOverrideManager.updateTemperature(null);
 
       // remove uploaded files
