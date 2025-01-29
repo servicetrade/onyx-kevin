@@ -76,13 +76,7 @@ import {
 import { buildFilters } from "@/lib/search/utils";
 import { SettingsContext } from "@/components/settings/SettingsProvider";
 import Dropzone from "react-dropzone";
-import {
-  checkLLMSupportsImageInput,
-  getFinalLLM,
-  destructureValue,
-  getLLMProviderOverrideForPersona,
-} from "@/lib/llm/utils";
-
+import { checkLLMSupportsImageInput, getFinalLLM } from "@/lib/llm/utils";
 import { ChatInputBar } from "./input/ChatInputBar";
 import { useChatContext } from "@/components/context/ChatContext";
 import { v4 as uuidv4 } from "uuid";
@@ -1273,13 +1267,11 @@ export function ChatPage({
         modelProvider:
           modelOverRide?.name ||
           llmOverrideManager.llmOverride.name ||
-          llmOverrideManager.globalDefault.name ||
           undefined,
         modelVersion:
           modelOverRide?.modelName ||
           llmOverrideManager.llmOverride.modelName ||
           searchParams.get(SEARCH_PARAM_NAMES.MODEL_VERSION) ||
-          llmOverrideManager.globalDefault.modelName ||
           undefined,
         temperature: llmOverrideManager.temperature || undefined,
         systemPromptOverride:
@@ -1942,6 +1934,7 @@ export function ChatPage({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
   const [sharedChatSession, setSharedChatSession] =
     useState<ChatSession | null>();
 
@@ -2049,7 +2042,9 @@ export function ChatPage({
       {(settingsToggled || userSettingsToggled) && (
         <UserSettingsModal
           setPopup={setPopup}
-          setLlmOverride={llmOverrideManager.setGlobalDefault}
+          setLlmOverride={(newOverride) =>
+            llmOverrideManager.updateLLMOverride(newOverride)
+          }
           defaultModel={user?.preferences.default_model!}
           llmProviders={llmProviders}
           onClose={() => {

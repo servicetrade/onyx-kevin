@@ -360,8 +360,6 @@ export interface LlmOverride {
 export interface LlmOverrideManager {
   llmOverride: LlmOverride;
   updateLLMOverride: (newOverride: LlmOverride) => void;
-  globalDefault: LlmOverride;
-  setGlobalDefault: React.Dispatch<React.SetStateAction<LlmOverride>>;
   temperature: number | null;
   updateTemperature: (temperature: number | null) => void;
   updateModelOverrideForChatSession: (chatSession?: ChatSession) => void;
@@ -399,7 +397,7 @@ export function useLlmOverride(
 
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
 
-  const calculateCurrentOverride = () => {
+  const llmOverrideUpdate = () => {
     if (!chatSession && currentChatSession) {
       setChatSession(currentChatSession || null);
       return;
@@ -431,13 +429,6 @@ export function useLlmOverride(
     }
     setChatSession(currentChatSession || null);
   };
-
-  // Provide state for global default, matching interface LlmOverrideManager
-  const [globalDefault, setGlobalDefault] = useState<LlmOverride>({
-    name: "",
-    provider: "",
-    modelName: "",
-  });
 
   const getValidLlmOverride = (
     overrideModel: string | null | undefined
@@ -480,6 +471,7 @@ export function useLlmOverride(
     modelName: "",
   });
 
+  // Manually set the override
   const updateLLMOverride = (newOverride: LlmOverride) => {
     const provider =
       newOverride.provider ||
@@ -489,9 +481,7 @@ export function useLlmOverride(
       provider,
       newOverride.modelName
     );
-    const validLLMOverride = getValidLlmOverride(structuredValue);
-
-    setLlmOverride(validLLMOverride);
+    setLlmOverride(getValidLlmOverride(structuredValue));
   };
 
   const updateModelOverrideForChatSession = (chatSession?: ChatSession) => {
@@ -503,7 +493,7 @@ export function useLlmOverride(
   const [temperature, setTemperature] = useState<number | null>(0);
 
   useEffect(() => {
-    calculateCurrentOverride();
+    llmOverrideUpdate();
   }, [liveAssistant, currentChatSession]);
 
   useEffect(() => {
@@ -524,8 +514,6 @@ export function useLlmOverride(
     updateModelOverrideForChatSession,
     llmOverride,
     updateLLMOverride,
-    globalDefault,
-    setGlobalDefault,
     temperature,
     updateTemperature,
     imageFilesPresent,
