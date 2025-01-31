@@ -9,7 +9,7 @@ env:
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   GEN_AI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-  DEV_MODE: true
+  MOCK_LLM_RESPONSE: true
 
 jobs:
   playwright-tests:
