@@ -23,36 +23,32 @@ test("Assistant Drag and Drop", async ({ page }) => {
   // Get the initial order
   const initialOrder = await getAssistantOrder();
 
-  // --- DRAG #1: Drag the second assistant (index 1) to where the first assistant (index 0) is
+  // Drag second assistant above first
   const secondAssistant = page.locator('[data-testid^="assistant-["]').nth(1);
   const firstAssistant = page.locator('[data-testid^="assistant-["]').nth(0);
 
   await dragElementAbove(secondAssistant, firstAssistant, page);
 
-  // Verify the new order
+  // Check new order
   const orderAfterDragUp = await getAssistantOrder();
   expect(orderAfterDragUp[0]).toBe(initialOrder[1]);
   expect(orderAfterDragUp[1]).toBe(initialOrder[0]);
 
-  // --- DRAG #2: Drag the last assistant to the second position
+  // Drag last assistant to second position
   const assistants = page.locator('[data-testid^="assistant-["]');
   const lastIndex = (await assistants.count()) - 1;
   const lastAssistant = assistants.nth(lastIndex);
   const secondPosition = assistants.nth(1);
 
-  // Add a 3 second timeout before dragging
   await page.waitForTimeout(3000);
   await dragElementBelow(lastAssistant, secondPosition, page);
 
-  // Verify the new order
+  // Check new order
   const orderAfterDragDown = await getAssistantOrder();
-  // The last pinned item should now end up at index 1
   expect(orderAfterDragDown[1]).toBe(initialOrder[lastIndex]);
 
-  // Refresh the page
+  // Refresh and verify order
   await page.reload();
-
-  // Verify the order is preserved after refresh
   const orderAfterRefresh = await getAssistantOrder();
   expect(orderAfterRefresh).toEqual(orderAfterDragDown);
 });

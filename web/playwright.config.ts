@@ -8,14 +8,8 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         storageState: "admin_auth.json",
-        actionTimeout: 60000,
       },
       testIgnore: ["**/codeUtils.test.ts"],
     },
   ],
-  use: {
-    actionTimeout: 60000,
-    navigationTimeout: 60000,
-  },
-  timeout: 60000,
 });

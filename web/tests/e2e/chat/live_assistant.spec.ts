@@ -8,12 +8,14 @@ import {
 } from "../utils/chatActions";
 
 test("Chat workflow", async ({ page }) => {
+  // Clear cookies and log in as a random user
   await page.context().clearCookies();
   await loginAsRandomUser(page);
 
-  // Initial setup
+  // Navigate to the chat page
   await page.goto("http://localhost:3000/chat");
-  // Interact with Art assistant
+
+  // Test interaction with the Art assistant
   await navigateToAssistantInHistorySidebar(
     page,
     "[-3]",
@@ -21,23 +23,23 @@ test("Chat workflow", async ({ page }) => {
   );
   await sendMessage(page, "Hi");
 
+  // Start a new chat session
   await startNewChat(page);
 
-  // Check for expected text
-  // Log current text
+  // Verify the presence of the expected text
   await expect(page.getByText("Assistant for generating")).toBeVisible();
 
-  // Interact with General assistant
+  // Test interaction with the General assistant
   await navigateToAssistantInHistorySidebar(
     page,
     "[-1]",
     "Assistant with no search"
   );
 
-  // Check URL after clicking General assistant
+  // Verify the URL after selecting the General assistant
   await expect(page).toHaveURL("http://localhost:3000/chat?assistantId=-1");
 
-  // Create a new assistant
+  // Test creation of a new assistant
   await page.getByRole("button", { name: "Explore Assistants" }).click();
   await page.getByRole("button", { name: "Create" }).click();
   await page.getByTestId("name").click();
@@ -48,13 +50,15 @@ test("Chat workflow", async ({ page }) => {
   await page.getByTestId("system_prompt").fill("Test Assistant Instructions");
   await page.getByRole("button", { name: "Create" }).click();
 
-  // Verify new assistant creation
+  // Verify the successful creation of the new assistant
   await expect(page.getByText("Test Assistant Description")).toBeVisible({
     timeout: 5000,
   });
 
-  // Start another new chat
+  // Start another new chat session
   await startNewChat(page);
+
+  // Verify the presence of the default assistant text
   await expect(page.getByText("Assistant with access to")).toBeVisible({
     timeout: 5000,
   });
