@@ -7,7 +7,14 @@ export async function navigateToAssistantInHistorySidebar(
   description: string
 ) {
   await page.getByTestId(`assistant-${testId}`).click();
-  await expect(page.getByText(description)).toBeVisible();
+  try {
+    await expect(page.getByText(description)).toBeVisible();
+  } catch (error) {
+    console.error("Error in navigateToAssistantInHistorySidebar:", error);
+    const pageText = await page.textContent("body");
+    console.log("Page text:", pageText);
+    throw error;
+  }
 }
 
 export async function sendMessage(page: Page, message: string) {

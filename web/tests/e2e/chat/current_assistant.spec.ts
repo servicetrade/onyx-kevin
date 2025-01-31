@@ -40,6 +40,8 @@ test("Assistant Drag and Drop", async ({ page }) => {
   const lastAssistant = assistants.nth(lastIndex);
   const secondPosition = assistants.nth(1);
 
+  // Add a 3 second timeout before dragging
+  await page.waitForTimeout(3000);
   await dragElementBelow(lastAssistant, secondPosition, page);
 
   // Verify the new order

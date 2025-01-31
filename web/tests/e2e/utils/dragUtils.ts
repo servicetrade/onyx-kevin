@@ -44,8 +44,8 @@ export async function dragElementBelow(
   page: Page
 ) {
   // Get bounding boxes
-  const sourceBB = await sourceLocator.boundingBox();
-  const targetBB = await targetLocator.boundingBox();
+  const sourceBB = await targetLocator.boundingBox();
+  const targetBB = await sourceLocator.boundingBox();
   if (!sourceBB || !targetBB) {
     throw new Error("Source/target bounding boxes not found.");
   }
@@ -57,14 +57,18 @@ export async function dragElementBelow(
   );
   await page.mouse.down();
 
-  // Move to a point slightly below the target's center
+  // Move to a point well below the target's bottom edge
   await page.mouse.move(
     targetBB.x + targetBB.width / 2,
-    targetBB.y + targetBB.height * 0.9, // Move to 9/10 down the target element
-    { steps: 20 } // Increase steps for smoother drag
+    targetBB.y + targetBB.height + 50, // Move 50 pixels below the target element
+    { steps: 50 } // Keep the same number of steps for smooth drag
   );
+
+  // Hold for a moment to ensure the drag is registered
+  await page.waitForTimeout(500);
+
   await page.mouse.up();
 
-  // Increase wait time for DnD transitions
-  await page.waitForTimeout(200);
+  // Wait for DnD transitions and potential animations
+  await page.waitForTimeout(1000);
 }

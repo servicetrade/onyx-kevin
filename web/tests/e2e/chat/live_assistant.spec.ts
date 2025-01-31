@@ -25,19 +25,17 @@ test("Chat workflow", async ({ page }) => {
 
   // Check for expected text
   // Log current text
-  const currentText = await page
-    .locator('div[data-testid="chat-intro"]')
-    .textContent();
-  console.log("Current text:", currentText);
   await expect(page.getByText("Assistant for generating")).toBeVisible();
 
   // Interact with General assistant
-  await switchModel(page, "General");
+  await navigateToAssistantInHistorySidebar(
+    page,
+    "[-1]",
+    "Assistant with no search"
+  );
 
   // Check URL after clicking General assistant
-  await expect(page).toHaveURL("http://localhost:3000/chat?assistantId=-1", {
-    timeout: 5000,
-  });
+  await expect(page).toHaveURL("http://localhost:3000/chat?assistantId=-1");
 
   // Create a new assistant
   await page.getByRole("button", { name: "Explore Assistants" }).click();
@@ -56,7 +54,7 @@ test("Chat workflow", async ({ page }) => {
   });
 
   // Start another new chat
-  await page.getByRole("link", { name: "Start New Chat" }).click();
+  await startNewChat(page);
   await expect(page.getByText("Assistant with access to")).toBeVisible({
     timeout: 5000,
   });
