@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { loginAsRandomUser } from "../utils/auth";
+import {
+  navigateToAssistantInHistorySidebar,
+  sendMessage,
+  startNewChat,
+  switchModel,
+} from "../utils/chatActions";
 
 test("Chat workflow", async ({ page }) => {
   await page.context().clearCookies();
@@ -8,18 +14,25 @@ test("Chat workflow", async ({ page }) => {
   // Initial setup
   await page.goto("http://localhost:3000/chat");
   // Interact with Art assistant
-  await page.locator("button").filter({ hasText: "Art" }).click();
-  await page.getByPlaceholder("Message Art assistant...").fill("Hi");
-  await page.keyboard.press("Enter");
-  await page.waitForSelector("#onyx-ai-message");
+  await navigateToAssistantInHistorySidebar(
+    page,
+    "[-3]",
+    "Assistant for generating"
+  );
+  await sendMessage(page, "Hi");
 
-  await page.getByRole("link", { name: "Start New Chat" }).click();
+  await startNewChat(page);
 
   // Check for expected text
+  // Log current text
+  const currentText = await page
+    .locator('div[data-testid="chat-intro"]')
+    .textContent();
+  console.log("Current text:", currentText);
   await expect(page.getByText("Assistant for generating")).toBeVisible();
 
   // Interact with General assistant
-  await page.locator("button").filter({ hasText: "General" }).click();
+  await switchModel(page, "General");
 
   // Check URL after clicking General assistant
   await expect(page).toHaveURL("http://localhost:3000/chat?assistantId=-1", {
