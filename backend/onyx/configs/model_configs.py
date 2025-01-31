@@ -55,7 +55,7 @@ CROSS_ENCODER_RANGE_MIN = 0
 # Generative AI Model Configs
 #####
 
-# NOTE: the 3 below should only be used for dev.
+# NOTE: the 4 below should only be used for dev.
 GEN_AI_API_KEY = os.environ.get("GEN_AI_API_KEY")
 GEN_AI_MODEL_VERSION = os.environ.get("GEN_AI_MODEL_VERSION")
 FAST_GEN_AI_MODEL_VERSION = os.environ.get("FAST_GEN_AI_MODEL_VERSION")
