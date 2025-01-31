@@ -1,23 +1,19 @@
 import { test, expect } from "@playwright/test";
-
-// Use pre-signed in "admin" storage state
-test.use({
-  storageState: "admin_auth.json",
-});
+import { loginAsRandomUser } from "../utils/auth";
 
 test("Chat workflow", async ({ page }) => {
-  // Initial setup
-  await page.goto("http://localhost:3000/chat", { timeout: 3000 });
+  await page.context().clearCookies();
+  await loginAsRandomUser(page);
 
+  // Initial setup
+  await page.goto("http://localhost:3000/chat");
   // Interact with Art assistant
   await page.locator("button").filter({ hasText: "Art" }).click();
   await page.getByPlaceholder("Message Art assistant...").fill("Hi");
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(3000);
+  await page.waitForSelector("#onyx-ai-message");
 
-  // Start a new chat
   await page.getByRole("link", { name: "Start New Chat" }).click();
-  await page.waitForNavigation({ waitUntil: "networkidle" });
 
   // Check for expected text
   await expect(page.getByText("Assistant for generating")).toBeVisible();
