@@ -25,9 +25,9 @@ import FixedLogo from "../../../../components/logo/FixedLogo";
 import { useRouter } from "next/navigation";
 
 function BackToOnyxButton({
-  documentSidebarToggled,
+  documentSidebarVisible,
 }: {
-  documentSidebarToggled: boolean;
+  documentSidebarVisible: boolean;
 }) {
   const router = useRouter();
   const enterpriseSettings = useContext(SettingsContext)?.enterpriseSettings;
@@ -47,7 +47,7 @@ function BackToOnyxButton({
             transition-all 
             duration-300 
             ease-in-out
-            ${documentSidebarToggled ? "w-[400px]" : "w-[0px]"}
+            ${documentSidebarVisible ? "w-[400px]" : "w-[0px]"}
         `}
       ></div>
     </div>
@@ -62,7 +62,7 @@ export function SharedChatDisplay({
   persona: Persona;
 }) {
   const settings = useContext(SettingsContext);
-  const [documentSidebarToggled, setDocumentSidebarToggled] = useState(false);
+  const [documentSidebarVisible, setDocumentSidebarVisible] = useState(false);
   const [selectedMessageForDocDisplay, setSelectedMessageForDocDisplay] =
     useState<number | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -70,7 +70,7 @@ export function SharedChatDisplay({
     useState<OnyxDocument | null>(null);
 
   const toggleDocumentSidebar = () => {
-    setDocumentSidebarToggled(!documentSidebarToggled);
+    setDocumentSidebarVisible(!documentSidebarVisible);
   };
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function SharedChatDisplay({
             Did not find a shared chat with the specified ID.
           </Callout>
         </div>
-        <BackToOnyxButton documentSidebarToggled={documentSidebarToggled} />
+        <BackToOnyxButton documentSidebarVisible={documentSidebarVisible} />
       </div>
     );
   }
@@ -102,7 +102,7 @@ export function SharedChatDisplay({
           onClose={() => setPresentingDocument(null)}
         />
       )}
-      {documentSidebarToggled && settings?.isMobile && (
+      {documentSidebarVisible && settings?.isMobile && (
         <div className="md:hidden">
           <Modal noPadding noScroll>
             <DocumentResults
@@ -117,7 +117,7 @@ export function SharedChatDisplay({
                   : null
               }
               toggleDocumentSelection={() => {
-                setDocumentSidebarToggled(true);
+                setDocumentSidebarVisible(true);
               }}
               selectedDocuments={[]}
               clearSelectedDocuments={() => {}}
@@ -128,7 +128,7 @@ export function SharedChatDisplay({
               setPresentingDocument={setPresentingDocument}
               modal={true}
               closeSidebar={() => {
-                setDocumentSidebarToggled(false);
+                setDocumentSidebarVisible(false);
               }}
             />
           </Modal>
@@ -158,7 +158,7 @@ export function SharedChatDisplay({
                   duration-300
                   ease-in-out
                   h-full
-                  ${documentSidebarToggled ? "w-[400px]" : "w-[0px]"}
+                  ${documentSidebarVisible ? "w-[400px]" : "w-[0px]"}
             `}
               >
                 <DocumentResults
@@ -174,7 +174,7 @@ export function SharedChatDisplay({
                       : null
                   }
                   toggleDocumentSelection={() => {
-                    setDocumentSidebarToggled(true);
+                    setDocumentSidebarVisible(true);
                   }}
                   clearSelectedDocuments={() => {}}
                   selectedDocumentTokens={0}
@@ -183,7 +183,7 @@ export function SharedChatDisplay({
                   isOpen={true}
                   setPresentingDocument={setPresentingDocument}
                   closeSidebar={() => {
-                    setDocumentSidebarToggled(false);
+                    setDocumentSidebarVisible(false);
                   }}
                   selectedDocuments={[]}
                 />
@@ -214,7 +214,7 @@ export function SharedChatDisplay({
                       bg-gradient-to-b via-50% z-[-1] from-background via-background to-background/10 flex
                       transition-all duration-300 ease-in-out
                       ${
-                        documentSidebarToggled
+                        documentSidebarVisible
                           ? "left-[200px] transform -translate-x-[calc(50%+100px)]"
                           : "left-1/2 transform -translate-x-1/2"
                       }
@@ -370,6 +370,7 @@ export function SharedChatDisplay({
                         }
                       } else {
                         return (
+<<<<<<< HEAD
                           <div key={message.messageId}>
                             <AgenticMessage
                               shared
@@ -380,6 +381,37 @@ export function SharedChatDisplay({
                                 <p className="text-red-700 text-sm my-auto">
                                   {message.message}
                                 </p>
+=======
+                          <AIMessage
+                            shared
+                            query={message.query || undefined}
+                            hasDocs={
+                              (message.documents &&
+                                message.documents.length > 0) === true
+                            }
+                            toolCall={message.toolCall}
+                            docs={message.documents}
+                            setPresentingDocument={setPresentingDocument}
+                            currentPersona={persona}
+                            key={message.messageId}
+                            messageId={message.messageId}
+                            content={message.message}
+                            files={message.files || []}
+                            citedDocuments={getCitedDocumentsFromMessage(
+                              message
+                            )}
+                            // toggleDocumentSelection={() => {
+                            //   setDocumentSidebarVisible(true);
+                            // }}
+                            toggleDocumentSelection={() => {
+                              if (
+                                !documentSidebarVisible ||
+                                (documentSidebarVisible &&
+                                  selectedMessageForDocDisplay ===
+                                    message.messageId)
+                              ) {
+                                toggleDocumentSidebar();
+>>>>>>> feeed0c32 (address comment)
                               }
                             />
                           </div>
@@ -404,7 +436,7 @@ export function SharedChatDisplay({
                           transition-all 
                           duration-300 
                           ease-in-out
-                          ${documentSidebarToggled ? "w-[400px]" : "w-[0px]"}
+                          ${documentSidebarVisible ? "w-[400px]" : "w-[0px]"}
                       `}
                 ></div>
               )}
@@ -412,7 +444,7 @@ export function SharedChatDisplay({
           </div>
 
           <FixedLogo backgroundToggled={false} />
-          <BackToOnyxButton documentSidebarToggled={documentSidebarToggled} />
+          <BackToOnyxButton documentSidebarVisible={documentSidebarVisible} />
         </div>
       </div>
     </>
