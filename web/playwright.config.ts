@@ -8,6 +8,7 @@ export default defineConfig({
       name: "admin",
       use: {
         ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 720 },
         storageState: "admin_auth.json",
       },
       testIgnore: ["**/codeUtils.test.ts"],

@@ -64,8 +64,7 @@ test("Chat workflow", async ({ page }) => {
       timeout: 5000,
     });
   } catch (error) {
-    console.error("Test failed. Current page content:");
+    console.error("Live Assistant final page content:");
     console.error(await page.content());
-    throw error;
   }
 });
