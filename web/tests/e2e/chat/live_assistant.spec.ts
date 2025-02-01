@@ -59,7 +59,13 @@ test("Chat workflow", async ({ page }) => {
   await startNewChat(page);
 
   // Verify the presence of the default assistant text
-  await expect(page.getByText("Assistant with access to")).toBeVisible({
-    timeout: 5000,
-  });
+  try {
+    await expect(page.getByText("Assistant with access to")).toBeVisible({
+      timeout: 5000,
+    });
+  } catch (error) {
+    console.error("Test failed. Current page content:");
+    console.error(await page.content());
+    throw error;
+  }
 });

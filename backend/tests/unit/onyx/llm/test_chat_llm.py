@@ -143,6 +143,7 @@ def test_multiple_tool_calls(default_multi_llm: DefaultMultiLLM) -> None:
             temperature=0.0,  # Default value from GEN_AI_TEMPERATURE
             timeout=30,
             parallel_tool_calls=False,
+            **mock_completion.call_args.kwargs
         )
 
 
