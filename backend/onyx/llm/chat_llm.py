@@ -388,7 +388,7 @@ class DefaultMultiLLM(LLM):
 
         try:
             return litellm.completion(
-                mock_response="Mock response" if MOCK_LLM_RESPONSE else None,
+                mock_response=MOCK_LLM_RESPONSE,
                 # model choice
                 model=f"{self.config.model_provider}/{self.config.deployment_name or self.config.model_name}",
                 # NOTE: have to pass in None instead of empty string for these
