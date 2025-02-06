@@ -106,6 +106,8 @@ jobs:
       # In practice, `cloud` Auth type would require OAUTH credentials to be set.
       - name: Run Multi-Tenant Integration Tests
         run: |
+          echo "Waiting for 3 minutes to ensure API server is ready..."
+          sleep 180
           echo "Running integration tests..."
           docker run --rm --network danswer-stack_default \
             --name test-runner \
