@@ -94,6 +94,7 @@ jobs:
           cd deployment/docker_compose
           ENABLE_PAID_ENTERPRISE_EDITION_FEATURES=true \
           MULTI_TENANT=true \
+          LOG_LEVEL=DEBUG \
           AUTH_TYPE=cloud \
           REQUIRE_EMAIL_VERIFICATION=false \
           DISABLE_TELEMETRY=true \
@@ -113,6 +114,7 @@ jobs:
             -e POSTGRES_PASSWORD=password \
             -e POSTGRES_DB=postgres \
             -e VESPA_HOST=index \
+            -e LOG_LEVEL=DEBUG \  
             -e REDIS_HOST=cache \
             -e API_SERVER_HOST=api_server \
             -e OPENAI_API_KEY=${OPENAI_API_KEY} \
@@ -120,6 +122,10 @@ jobs:
             -e TEST_WEB_HOSTNAME=test-runner \
             -e AUTH_TYPE=cloud \
             -e MULTI_TENANT=true \
+            -e REQUIRE_EMAIL_VERIFICATION=false \
+            -e DISABLE_TELEMETRY=true \
+            -e IMAGE_TAG=test \
+            -e DEV_MODE=true \
             onyxdotapp/onyx-integration:test \
             /app/tests/integration/multitenant_tests
         continue-on-error: true
@@ -147,6 +153,7 @@ jobs:
           REQUIRE_EMAIL_VERIFICATION=false \
           DISABLE_TELEMETRY=true \
           IMAGE_TAG=test \
+          LOG_LEVEL=DEBUG \
           docker compose -f docker-compose.dev.yml -p danswer-stack up -d
         id: start_docker
 
@@ -195,6 +202,7 @@ jobs:
             -e POSTGRES_DB=postgres \
             -e VESPA_HOST=index \
             -e REDIS_HOST=cache \
+            -e LOG_LEVEL=DEBUG \
             -e API_SERVER_HOST=api_server \
             -e OPENAI_API_KEY=${OPENAI_API_KEY} \
             -e SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN} \
@@ -217,27 +225,37 @@ jobs:
             echo "All integration tests passed successfully."
           fi
 
-      # save before stopping the containers so the logs can be captured
-      - name: Save Docker logs
-        if: success() || failure()
+      # ------------------------------------------------------------
+      # Always gather logs BEFORE "down":
+      - name: Dump API server logs
+        if: always()
         run: |
           cd deployment/docker_compose
-          docker compose -f docker-compose.dev.yml -p danswer-stack logs > docker-compose.log
-          mv docker-compose.log ${{ github.workspace }}/docker-compose.log
+          docker compose -f docker-compose.dev.yml -p danswer-stack logs --no-color api_server > $GITHUB_WORKSPACE/api_server.log || true
 
-      - name: Stop Docker containers
+      - name: Dump all-container logs (optional)
+        if: always()
         run: |
           cd deployment/docker_compose
-          docker compose -f docker-compose.dev.yml -p danswer-stack down -v
+          docker compose -f docker-compose.dev.yml -p danswer-stack logs --no-color > $GITHUB_WORKSPACE/docker-compose.log || true
 
-      - name: Upload logs
-        if: success() || failure()
+      - name: Upload logs (API server specifically)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: docker-logs
+          name: api_server-logs
+          path: ${{ github.workspace }}/api_server.log
+
+      - name: Upload logs (all containers)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-all-logs
           path: ${{ github.workspace }}/docker-compose.log
+      # ------------------------------------------------------------
 
       - name: Stop Docker containers
+        if: always()
         run: |
           cd deployment/docker_compose
           docker compose -f docker-compose.dev.yml -p danswer-stack down -v
