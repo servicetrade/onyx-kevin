@@ -18,6 +18,13 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - MULTI_TENANT=true
+      - ENABLE_PAID_ENTERPRISE_EDITION_FEATURES=true
+      - LOG_LEVEL=DEBUG
+      - AUTH_TYPE=cloud
+      - DISABLE_TELEMETRY=true
+      - IMAGE_TAG=test
+      - DEV_MODE=true
       # Auth Settings
       - AUTH_TYPE=${AUTH_TYPE:-disabled}
       - SESSION_EXPIRE_TIME_SECONDS=${SESSION_EXPIRE_TIME_SECONDS:-}
