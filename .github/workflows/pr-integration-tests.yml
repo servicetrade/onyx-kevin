@@ -98,6 +98,7 @@ jobs:
           REQUIRE_EMAIL_VERIFICATION=false \
           DISABLE_TELEMETRY=true \
           IMAGE_TAG=test \
+          DEV_MODE=true \
           docker compose -f docker-compose.dev.yml -p danswer-stack up -d
         id: start_docker_multi_tenant
 
