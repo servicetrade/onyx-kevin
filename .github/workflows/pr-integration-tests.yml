@@ -100,7 +100,7 @@ jobs:
           DISABLE_TELEMETRY=true \
           IMAGE_TAG=test \
           DEV_MODE=true \
-          docker compose -f docker-compose.dev.yml -p danswer-stack up -d
+          docker compose -f docker-compose.multi.yml -p danswer-stack up -d
         id: start_docker_multi_tenant
 
       # In practice, `cloud` Auth type would require OAUTH credentials to be set.
@@ -143,7 +143,7 @@ jobs:
       - name: Stop multi-tenant Docker containers
         run: |
           cd deployment/docker_compose
-          docker compose -f docker-compose.dev.yml -p danswer-stack down -v
+          docker compose -f docker-compose.multi.yml -p danswer-stack down -v
 
       - name: Start Docker containers
         run: |
