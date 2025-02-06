@@ -481,9 +481,7 @@ const SubQuestionsDisplay: React.FC<SubQuestionsDisplayProps> = ({
     subQuestions,
     () => {},
     () => {
-      setTimeout(() => {
-        setShowSummarizing(true);
-      }, PHASE_MIN_MS * 3);
+      setShowSummarizing(true);
     }
   );
   const { dynamicSubQuestions: dynamicSecondLevelQuestions } =
@@ -556,11 +554,11 @@ const SubQuestionsDisplay: React.FC<SubQuestionsDisplayProps> = ({
         (subQuestion) => subQuestion?.question.length > 5
       );
 
-    if (allSubQuestionsAnswered) {
-      setTimeout(() => {
-        setShowSummarizing(true);
-      }, PHASE_MIN_MS * 0.75);
-    }
+    // if (allSubQuestionsAnswered) {
+    //   setTimeout(() => {
+    //     setShowSummarizing(true);
+    //   }, PHASE_MIN_MS * 0.75);
+    // }
   }, [memoizedSubQuestions, finishedGenerating]);
 
   useEffect(() => {

@@ -39,6 +39,7 @@ def dispatch_subquestion(
 
 def dispatch_subquestion_sep(level: int, writer: StreamWriter) -> Callable[[int], None]:
     def _helper(sep_num: int) -> None:
+        print("I AM STREAMING A SEPARATOR", level, sep_num)
         write_custom_event(
             "stream_finished",
             StreamStopInfo(
