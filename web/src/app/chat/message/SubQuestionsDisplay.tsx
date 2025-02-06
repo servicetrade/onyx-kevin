@@ -548,20 +548,6 @@ const SubQuestionsDisplay: React.FC<SubQuestionsDisplayProps> = ({
   }, [memoizedSubQuestions]);
 
   useEffect(() => {
-    const allSubQuestionsAnswered =
-      memoizedSubQuestions.length > 0 &&
-      memoizedSubQuestions.every(
-        (subQuestion) => subQuestion?.question.length > 5
-      );
-
-    // if (allSubQuestionsAnswered) {
-    //   setTimeout(() => {
-    //     setShowSummarizing(true);
-    //   }, PHASE_MIN_MS * 0.75);
-    // }
-  }, [memoizedSubQuestions, finishedGenerating]);
-
-  useEffect(() => {
     if (showSummarizing && streamedText !== "Summarize findings") {
       const fullText = "Summarize findings";
       let index = 0;
