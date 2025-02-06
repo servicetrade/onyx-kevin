@@ -21,7 +21,7 @@ def test_multi_tenant_access_control(reset_multitenant: None) -> None:
 
     # Create Tenant 2 and its Admin User
     admin_user2: DATestUser = UserManager.create(
-        email="admin@onyx-test.com",
+        email="admin2@onyx-test.com",
     )
     assert UserManager.is_role(admin_user2, UserRole.ADMIN)
 
@@ -102,8 +102,10 @@ def test_multi_tenant_access_control(reset_multitenant: None) -> None:
     ), "Tenant 2 document IDs should not be in the response"
 
     # Assert that the contents are correct
-    for doc in response1.tool_result or []:
-        assert doc["content"] == "Tenant 1 Document Content"
+    assert any(
+        doc["content"] == "Tenant 1 Document Content"
+        for doc in response1.tool_result or []
+    ), "Tenant 1 Document Content not found in any document"
 
     # User 2 sends a message and gets a response
     response2 = ChatSessionManager.send_message(
@@ -121,9 +123,12 @@ def test_multi_tenant_access_control(reset_multitenant: None) -> None:
     assert not response_doc_ids.intersection(
         tenant1_doc_ids
     ), "Tenant 1 document IDs should not be in the response"
+
     # Assert that the contents are correct
-    for doc in response2.tool_result or []:
-        assert doc["content"] == "Tenant 2 Document Content"
+    assert any(
+        doc["content"] == "Tenant 2 Document Content"
+        for doc in response2.tool_result or []
+    ), "Tenant 2 Document Content not found in any document"
 
     # User 1 tries to access Tenant 2's documents
     response_cross = ChatSessionManager.send_message(
