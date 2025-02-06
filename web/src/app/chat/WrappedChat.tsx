@@ -16,7 +16,7 @@ export default function WrappedChat({
 
   return (
     <FunctionalWrapper
-      sidebarInitiallyVisible={sidebarInitiallyVisible && !defaultSidebarOff}
+      initiallyVisible={sidebarInitiallyVisible && !defaultSidebarOff}
       content={(sidebarVisible, toggle) => (
         <ChatPage
           toggle={toggle}

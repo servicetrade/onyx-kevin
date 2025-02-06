@@ -21,7 +21,7 @@ import TextView from "@/components/chat/TextView";
 import { DocumentResults } from "../../documentSidebar/DocumentResults";
 import { Modal } from "@/components/Modal";
 import FunctionalHeader from "@/components/chat/Header";
-import FixedLogo from "../../../../components/logo/FixedLogo";
+import FixedLogo from "@/components/logo/FixedLogo";
 import { useRouter } from "next/navigation";
 
 function BackToOnyxButton({
@@ -311,13 +311,13 @@ export function SharedChatDisplay({
                               selectedDocuments={[]}
                               toggleDocumentSelection={() => {
                                 if (
-                                  !documentSidebarToggled ||
-                                  (documentSidebarToggled &&
+                                  !documentSidebarVisible ||
+                                  (documentSidebarVisible &&
                                     selectedMessageForDocDisplay ===
                                       message.messageId)
                                 ) {
-                                  setDocumentSidebarToggled(
-                                    !documentSidebarToggled
+                                  setDocumentSidebarVisible(
+                                    !documentSidebarVisible
                                   );
                                 }
                                 setSelectedMessageForDocDisplay(
@@ -351,13 +351,13 @@ export function SharedChatDisplay({
                               selectedDocuments={[]}
                               toggleDocumentSelection={() => {
                                 if (
-                                  !documentSidebarToggled ||
-                                  (documentSidebarToggled &&
+                                  !documentSidebarVisible ||
+                                  (documentSidebarVisible &&
                                     selectedMessageForDocDisplay ===
                                       message.messageId)
                                 ) {
-                                  setDocumentSidebarToggled(
-                                    !documentSidebarToggled
+                                  setDocumentSidebarVisible(
+                                    !documentSidebarVisible
                                   );
                                 }
                                 setSelectedMessageForDocDisplay(
@@ -370,7 +370,6 @@ export function SharedChatDisplay({
                         }
                       } else {
                         return (
-<<<<<<< HEAD
                           <div key={message.messageId}>
                             <AgenticMessage
                               shared
@@ -381,37 +380,6 @@ export function SharedChatDisplay({
                                 <p className="text-red-700 text-sm my-auto">
                                   {message.message}
                                 </p>
-=======
-                          <AIMessage
-                            shared
-                            query={message.query || undefined}
-                            hasDocs={
-                              (message.documents &&
-                                message.documents.length > 0) === true
-                            }
-                            toolCall={message.toolCall}
-                            docs={message.documents}
-                            setPresentingDocument={setPresentingDocument}
-                            currentPersona={persona}
-                            key={message.messageId}
-                            messageId={message.messageId}
-                            content={message.message}
-                            files={message.files || []}
-                            citedDocuments={getCitedDocumentsFromMessage(
-                              message
-                            )}
-                            // toggleDocumentSelection={() => {
-                            //   setDocumentSidebarVisible(true);
-                            // }}
-                            toggleDocumentSelection={() => {
-                              if (
-                                !documentSidebarVisible ||
-                                (documentSidebarVisible &&
-                                  selectedMessageForDocDisplay ===
-                                    message.messageId)
-                              ) {
-                                toggleDocumentSidebar();
->>>>>>> feeed0c32 (address comment)
                               }
                             />
                           </div>

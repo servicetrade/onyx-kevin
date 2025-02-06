@@ -88,6 +88,7 @@ export default function FunctionalHeader({
             duration-300 
             ease-in-out
             h-full
+            
             ${sidebarToggled ? "w-[250px]" : "w-[0px]"}
             `}
           />
@@ -104,8 +105,8 @@ export default function FunctionalHeader({
               documentSidebarVisible && !sidebarToggled
                 ? "left-[calc(50%-175px)]"
                 : !documentSidebarVisible && sidebarToggled
-                ? "left-[calc(50%+100px)]"
-                : "left-1/2"
+                  ? "left-[calc(50%+100px)]"
+                  : "left-1/2"
             }
             ${
               documentSidebarVisible || sidebarToggled
