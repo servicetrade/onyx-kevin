@@ -272,7 +272,7 @@ class InternetSearchTool(Tool):
         tool_responses: list[ToolResponse],
         using_tool_calling_llm: bool,
     ) -> AnswerPromptBuilder:
-        x = build_next_prompt_for_search_like_tool(
+        return build_next_prompt_for_search_like_tool(
             prompt_builder=prompt_builder,
             tool_call_summary=tool_call_summary,
             tool_responses=tool_responses,
@@ -281,4 +281,3 @@ class InternetSearchTool(Tool):
             prompt_config=self.prompt_config,
             context_type="internet search results",
         )
-        return x
