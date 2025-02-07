@@ -646,6 +646,7 @@ export const AIMessage = ({
                               onClick={() => handleFeedback("dislike")}
                             />
                           </CustomTooltip>
+
                           {regenerate && (
                             <CustomTooltip
                               disabled={isRegenerateDropdownVisible}
@@ -792,7 +793,7 @@ function MessageSwitcher({
         onClick={currentPage === 1 ? undefined : handlePrevious}
       />
 
-      <span className="text-emphasis select-none">
+      <span className="text-text-darker select-none">
         {currentPage} / {totalPages}
       </span>
 
