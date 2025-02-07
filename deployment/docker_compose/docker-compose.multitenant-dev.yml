@@ -5,7 +5,7 @@ services:
       context: ../../backend
       dockerfile: Dockerfile
     command: >
-      /bin/sh -c "echo first &&
+      /bin/sh -c "
       alembic -n schema_private upgrade head &&
       echo \"Starting Onyx Api Server\" &&
       uvicorn onyx.main:app --host 0.0.0.0 --port 8080"
@@ -18,26 +18,25 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - MULTI_TENANT=true
       - ENABLE_PAID_ENTERPRISE_EDITION_FEATURES=true
+      - MULTI_TENANT=true
       - LOG_LEVEL=DEBUG
       - AUTH_TYPE=cloud
+      - REQUIRE_EMAIL_VERIFICATION=false
       - DISABLE_TELEMETRY=true
       - IMAGE_TAG=test
       - DEV_MODE=true
       # Auth Settings
-      - AUTH_TYPE=${AUTH_TYPE:-disabled}
       - SESSION_EXPIRE_TIME_SECONDS=${SESSION_EXPIRE_TIME_SECONDS:-}
       - ENCRYPTION_KEY_SECRET=${ENCRYPTION_KEY_SECRET:-}
       - VALID_EMAIL_DOMAINS=${VALID_EMAIL_DOMAINS:-}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      - REQUIRE_EMAIL_VERIFICATION=${REQUIRE_EMAIL_VERIFICATION:-}
-      - SMTP_SERVER=${SMTP_SERVER:-} # For sending verification emails, if unspecified then defaults to 'smtp.gmail.com'
-      - SMTP_PORT=${SMTP_PORT:-587} # For sending verification emails, if unspecified then defaults to '587'
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
-      - ENABLE_EMAIL_INVITES=${ENABLE_EMAIL_INVITES:-} # If enabled, will send users (using SMTP settings) an email to join the workspace
+      - ENABLE_EMAIL_INVITES=${ENABLE_EMAIL_INVITES:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
       - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
       - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-}
@@ -56,11 +55,10 @@ services:
       - BING_API_KEY=${BING_API_KEY:-}
       - DISABLE_LLM_DOC_RELEVANCE=${DISABLE_LLM_DOC_RELEVANCE:-}
       - GEN_AI_API_KEY=${GEN_AI_API_KEY:-}
-      # if set, allows for the use of the token budget system
       - TOKEN_BUDGET_GLOBALLY_ENABLED=${TOKEN_BUDGET_GLOBALLY_ENABLED:-}
       # Query Options
-      - DOC_TIME_DECAY=${DOC_TIME_DECAY:-} # Recency Bias for search results, decay at 1 / (1 + DOC_TIME_DECAY * x years)
-      - HYBRID_ALPHA=${HYBRID_ALPHA:-} # Hybrid Search Alpha (0 for entirely keyword, 1 for entirely vector)
+      - DOC_TIME_DECAY=${DOC_TIME_DECAY:-}
+      - HYBRID_ALPHA=${HYBRID_ALPHA:-}
       - EDIT_KEYWORD_QUERY=${EDIT_KEYWORD_QUERY:-}
       - MULTILINGUAL_QUERY_EXPANSION=${MULTILINGUAL_QUERY_EXPANSION:-}
       - LANGUAGE_HINT=${LANGUAGE_HINT:-}
@@ -71,7 +69,7 @@ services:
       - POSTGRES_DEFAULT_SCHEMA=${POSTGRES_DEFAULT_SCHEMA:-}
       - VESPA_HOST=index
       - REDIS_HOST=cache
-      - WEB_DOMAIN=${WEB_DOMAIN:-} # For frontend redirect auth purpose
+      - WEB_DOMAIN=${WEB_DOMAIN:-}
       # Don't change the NLP model configs unless you know what you're doing
       - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-}
       - DOCUMENT_ENCODER_MODEL=${DOCUMENT_ENCODER_MODEL:-}
@@ -81,16 +79,9 @@ services:
       - DISABLE_RERANK_FOR_STREAMING=${DISABLE_RERANK_FOR_STREAMING:-}
       - MODEL_SERVER_HOST=${MODEL_SERVER_HOST:-inference_model_server}
       - MODEL_SERVER_PORT=${MODEL_SERVER_PORT:-}
-      # Leave this on pretty please? Nothing sensitive is collected!
-      # https://docs.onyx.app/more/telemetry
-      - DISABLE_TELEMETRY=${DISABLE_TELEMETRY:-}
-      - LOG_LEVEL=${LOG_LEVEL:-info} # Set to debug to get more fine-grained logs
-      - LOG_ALL_MODEL_INTERACTIONS=${LOG_ALL_MODEL_INTERACTIONS:-} # LiteLLM Verbose Logging
-      # Log all of Onyx prompts and interactions with the LLM
+      - LOG_ALL_MODEL_INTERACTIONS=${LOG_ALL_MODEL_INTERACTIONS:-}
       - LOG_DANSWER_MODEL_INTERACTIONS=${LOG_DANSWER_MODEL_INTERACTIONS:-}
       - LOG_INDIVIDUAL_MODEL_TOKENS=${LOG_INDIVIDUAL_MODEL_TOKENS:-}
-      # If set to `true` will enable additional logs about Vespa query performance
-      # (time spent on finding the right docs + time spent fetching summaries from disk)
       - LOG_VESPA_TIMING_INFORMATION=${LOG_VESPA_TIMING_INFORMATION:-}
       - LOG_ENDPOINT_LATENCY=${LOG_ENDPOINT_LATENCY:-}
       - LOG_POSTGRES_LATENCY=${LOG_POSTGRES_LATENCY:-}
@@ -101,29 +92,20 @@ services:
       - EGNYTE_CLIENT_ID=${EGNYTE_CLIENT_ID:-}
       - EGNYTE_CLIENT_SECRET=${EGNYTE_CLIENT_SECRET:-}
       - EGNYTE_LOCALHOST_OVERRIDE=${EGNYTE_LOCALHOST_OVERRIDE:-}
-      # Lienar OAuth Configs
+      # Linear OAuth Configs
       - LINEAR_CLIENT_ID=${LINEAR_CLIENT_ID:-}
       - LINEAR_CLIENT_SECRET=${LINEAR_CLIENT_SECRET:-}
-
       # Analytics Configs
       - SENTRY_DSN=${SENTRY_DSN:-}
-
       # Chat Configs
       - HARD_DELETE_CHATS=${HARD_DELETE_CHATS:-}
-
       # Enables the use of bedrock models or IAM Auth
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - AWS_REGION_NAME=${AWS_REGION_NAME:-}
-
-      # Enterprise Edition only
-      - ENABLE_PAID_ENTERPRISE_EDITION_FEATURES=${ENABLE_PAID_ENTERPRISE_EDITION_FEATURES:-false}
       - API_KEY_HASH_ROUNDS=${API_KEY_HASH_ROUNDS:-}
       # Seeding configuration
       - USE_IAM_AUTH=${USE_IAM_AUTH:-}
-    # Uncomment the line below to use if IAM_AUTH is true and you are using iam auth for postgres
-    # volumes:
-    #   - ./bundle.pem:/app/bundle.pem:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
@@ -151,8 +133,15 @@ services:
       - indexing_model_server
     restart: always
     environment:
+      - ENABLE_PAID_ENTERPRISE_EDITION_FEATURES=true
+      - MULTI_TENANT=true
+      - LOG_LEVEL=DEBUG
+      - AUTH_TYPE=cloud
+      - REQUIRE_EMAIL_VERIFICATION=false
+      - DISABLE_TELEMETRY=true
+      - IMAGE_TAG=test
       - ENCRYPTION_KEY_SECRET=${ENCRYPTION_KEY_SECRET:-}
-      - JWT_PUBLIC_KEY_URL=${JWT_PUBLIC_KEY_URL:-} # used for JWT authentication of users via API
+      - JWT_PUBLIC_KEY_URL=${JWT_PUBLIC_KEY_URL:-}
       # Gen AI Settings (Needed by OnyxBot)
       - GEN_AI_MAX_TOKENS=${GEN_AI_MAX_TOKENS:-}
       - QA_TIMEOUT=${QA_TIMEOUT:-}
@@ -166,8 +155,8 @@ services:
       - GEN_AI_API_KEY=${GEN_AI_API_KEY:-}
       - BING_API_KEY=${BING_API_KEY:-}
       # Query Options
-      - DOC_TIME_DECAY=${DOC_TIME_DECAY:-} # Recency Bias for search results, decay at 1 / (1 + DOC_TIME_DECAY * x years)
-      - HYBRID_ALPHA=${HYBRID_ALPHA:-} # Hybrid Search Alpha (0 for entirely keyword, 1 for entirely vector)
+      - DOC_TIME_DECAY=${DOC_TIME_DECAY:-}
+      - HYBRID_ALPHA=${HYBRID_ALPHA:-}
       - EDIT_KEYWORD_QUERY=${EDIT_KEYWORD_QUERY:-}
       - MULTILINGUAL_QUERY_EXPANSION=${MULTILINGUAL_QUERY_EXPANSION:-}
       - LANGUAGE_HINT=${LANGUAGE_HINT:-}
@@ -181,12 +170,12 @@ services:
       - POSTGRES_DEFAULT_SCHEMA=${POSTGRES_DEFAULT_SCHEMA:-}
       - VESPA_HOST=index
       - REDIS_HOST=cache
-      - WEB_DOMAIN=${WEB_DOMAIN:-} # For frontend redirect auth purpose for OAuth2 connectors
+      - WEB_DOMAIN=${WEB_DOMAIN:-}
       # Don't change the NLP model configs unless you know what you're doing
       - DOCUMENT_ENCODER_MODEL=${DOCUMENT_ENCODER_MODEL:-}
       - DOC_EMBEDDING_DIM=${DOC_EMBEDDING_DIM:-}
       - NORMALIZE_EMBEDDINGS=${NORMALIZE_EMBEDDINGS:-}
-      - ASYM_QUERY_PREFIX=${ASYM_QUERY_PREFIX:-} # Needed by OnyxBot
+      - ASYM_QUERY_PREFIX=${ASYM_QUERY_PREFIX:-}
       - ASYM_PASSAGE_PREFIX=${ASYM_PASSAGE_PREFIX:-}
       - MODEL_SERVER_HOST=${MODEL_SERVER_HOST:-inference_model_server}
       - MODEL_SERVER_PORT=${MODEL_SERVER_PORT:-}

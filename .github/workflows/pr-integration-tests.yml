@@ -100,7 +100,7 @@ jobs:
           DISABLE_TELEMETRY=true \
           IMAGE_TAG=test \
           DEV_MODE=true \
-          docker compose -f docker-compose.multi.yml -p danswer-stack up -d
+          docker compose -f docker-compose.multitenant-dev.yml -p danswer-stack up -d
         id: start_docker_multi_tenant
 
       # In practice, `cloud` Auth type would require OAUTH credentials to be set.
@@ -145,7 +145,7 @@ jobs:
       - name: Stop multi-tenant Docker containers
         run: |
           cd deployment/docker_compose
-          docker compose -f docker-compose.multi.yml -p danswer-stack down -v
+          docker compose -f docker-compose.multitenant-dev.yml -p danswer-stack down -v
 
       - name: Start Docker containers
         run: |
@@ -241,14 +241,7 @@ jobs:
           cd deployment/docker_compose
           docker compose -f docker-compose.dev.yml -p danswer-stack logs --no-color > $GITHUB_WORKSPACE/docker-compose.log || true
 
-      - name: Upload logs (API server specifically)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api_server-logs
-          path: ${{ github.workspace }}/api_server.log
-
-      - name: Upload logs (all containers)
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
