@@ -179,6 +179,7 @@ def oauth_callback(
         db_session=db_session,
     )
 
+    # TODO: use a library for url handling
     sep = "&" if "?" in desired_return_url else "?"
     return CallbackResponse(
         redirect_url=f"{desired_return_url}{sep}credentialId={credential.id}"
