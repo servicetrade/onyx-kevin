@@ -937,7 +937,7 @@ export const HumanMessage = ({
                         <button
                           className={`
                           w-fit
-                          bg-accent 
+                          bg-agent 
                           text-inverted 
                           text-sm
                           rounded-lg 
