@@ -969,7 +969,7 @@ export const HumanMessage = ({
                           bg-background-strong 
                           text-sm
                           rounded-lg
-                          hover:bg-hover-emphasis
+                          hover:bg-accent-background-hovered-emphasis
                         `}
                           onClick={() => {
                             setEditedContent(content);
