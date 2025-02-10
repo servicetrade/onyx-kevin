@@ -239,21 +239,19 @@ export function UserSettingsModal({
             >
               <SelectTrigger className="w-full">
                 <div className="flex items-center gap-2">
-                  <Monitor className="h-4 w-4" />
+                  {theme === "system" ? (
+                    <Monitor className="h-4 w-4" />
+                  ) : theme === "light" ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
                   <SelectValue placeholder="Select theme" />
                 </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
-                  icon={
-                    theme === "system" ? (
-                      <Monitor className="h-4 w-4" />
-                    ) : theme === "light" ? (
-                      <Sun className="h-4 w-4" />
-                    ) : (
-                      <Moon className="h-4 w-4" />
-                    )
-                  }
+                  icon={<Monitor className="h-4 w-4" />}
                   value="system"
                 >
                   System
