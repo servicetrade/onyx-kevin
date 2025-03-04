@@ -359,6 +359,7 @@ async def delete_user_from_control_plane(tenant_id: str, email: str) -> None:
 
 def get_tenant_by_domain_from_control_plane(
     domain: str,
+    tenant_id: str,
 ) -> TenantByDomainResponse | None:
     """
     Fetches tenant information from the control plane based on the email domain.
@@ -379,7 +380,7 @@ def get_tenant_by_domain_from_control_plane(
         response = requests.get(
             f"{CONTROL_PLANE_API_BASE_URL}/tenant-by-domain",
             headers=headers,
-            json={"domain": domain},
+            json={"domain": domain, "tenant_id": tenant_id},
         )
 
         if response.status_code != 200:
