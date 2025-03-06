@@ -12,35 +12,16 @@ logger = setup_logger()
 
 router = APIRouter(prefix="/tenants")
 
-FORBIDDEN_COMMON_EMAIL_DOMAINS = [
-    "gmail.com",
-    "yahoo.com",
-    "hotmail.com",
-    "outlook.com",
-    "icloud.com",
-    "msn.com",
-    "live.com",
-    "msn.com",
-    "hotmail.com",
+FORBIDDEN_COMMON_EMAIL_SUBSTRINGS = [
+    "gmail",
+    "outlook",
+    "yahoo",
+    "hotmail",
+    "icloud",
+    "msn",
+    "live",
+    "hotmail",
     "hotmail.co.uk",
-    "hotmail.fr",
-    "hotmail.de",
-    "hotmail.it",
-    "hotmail.es",
-    "hotmail.nl",
-    "hotmail.pl",
-    "hotmail.pt",
-    "hotmail.ro",
-    "hotmail.ru",
-    "hotmail.sa",
-    "hotmail.se",
-    "hotmail.tr",
-    "hotmail.tw",
-    "hotmail.ua",
-    "hotmail.us",
-    "hotmail.vn",
-    "hotmail.za",
-    "hotmail.zw",
 ]
 
 
@@ -51,8 +32,9 @@ def get_existing_tenant_by_domain(
     if not user:
         return None
     domain = user.email.split("@")[1]
-    if domain in FORBIDDEN_COMMON_EMAIL_DOMAINS:
+    if any(substring in domain for substring in FORBIDDEN_COMMON_EMAIL_SUBSTRINGS):
         return None
+
     tenant_id = get_current_tenant_id()
 
     return get_tenant_by_domain_from_control_plane(domain, tenant_id)

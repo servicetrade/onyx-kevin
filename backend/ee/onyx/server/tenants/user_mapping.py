@@ -121,6 +121,10 @@ def invite_self_to_tenant(email: str, tenant_id: str) -> None:
 
 
 def approve_user_invite(email: str, tenant_id: str) -> None:
+    """
+    Approve a user invite to a tenant.
+    This will delete all existing records for this email and create a new mapping entry for the user in this tenant.
+    """
     with get_session_with_shared_schema() as db_session:
         # Delete all existing records for this email
         db_session.query(UserTenantMapping).filter(
@@ -233,6 +237,9 @@ def deny_user_invite(email: str, tenant_id: str) -> None:
 
 
 def get_tenant_count(tenant_id: str) -> int:
+    """
+    Get the number of active users for this tenant
+    """
     with get_session_with_shared_schema() as db_session:
         # Count the number of active users for this tenant
         user_count = (
@@ -248,6 +255,9 @@ def get_tenant_count(tenant_id: str) -> int:
 
 
 def get_tenant_invitation(email: str) -> TenantSnapshot | None:
+    """
+    Get the first tenant invitation for this user
+    """
     with get_session_with_shared_schema() as db_session:
         # Get the first tenant invitation for this user
         invitation = (

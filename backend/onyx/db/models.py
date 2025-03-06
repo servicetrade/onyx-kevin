@@ -2298,11 +2298,7 @@ class PublicBase(DeclarativeBase):
 # Strictly keeps track of the tenant that a given user will authenticate to.
 class UserTenantMapping(Base):
     __tablename__ = "user_tenant_mapping"
-    __table_args__ = (
-        # This ensures a user can only be active in one tenant at a time
-        # and that a user can only have one record per tenant
-        {"schema": "public"},
-    )
+    __table_args__ = ({"schema": "public"},)
 
     email: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)

@@ -143,7 +143,9 @@ export default function NewTenantModal({
             {isInvite ? (
               <>
                 You have been invited to join {tenantInfo.number_of_users}
-                other teammates of {APP_DOMAIN}.
+                other teammate{tenantInfo.number_of_users === 1
+                  ? ""
+                  : "s"} of {APP_DOMAIN}.
               </>
             ) : (
               <>
