@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { usePopup } from "@/components/admin/connectors/Popup";
 import { Building, ArrowRight, Send, CheckCircle } from "lucide-react";
 import { useUser } from "../user/UserProvider";
+import { useModalContext } from "../context/ModalContext";
 
 interface TenantByDomainResponse {
   tenant_id: string;
@@ -15,7 +16,7 @@ interface TenantByDomainResponse {
 }
 
 export function NewTeamModal() {
-  const [isOpen, setIsOpen] = useState(false);
+  const { showNewTeamModal, setShowNewTeamModal } = useModalContext();
   const [existingTenant, setExistingTenant] =
     useState<TenantByDomainResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +33,7 @@ export function NewTeamModal() {
   useEffect(() => {
     const hasNewTeamParam = searchParams.has("new_team");
     if (hasNewTeamParam) {
-      setIsOpen(true);
+      setShowNewTeamModal(true);
       fetchTenantInfo();
 
       // Remove the new_team parameter from the URL without page reload
@@ -43,7 +44,7 @@ export function NewTeamModal() {
         (newParams.toString() ? `?${newParams.toString()}` : "");
       window.history.replaceState({}, "", newUrl);
     }
-  }, [searchParams]);
+  }, [searchParams, setShowNewTeamModal]);
 
   const fetchTenantInfo = async () => {
     setIsLoading(true);
@@ -106,14 +107,23 @@ export function NewTeamModal() {
   const handleContinueToNewOrg = () => {
     const newUrl = window.location.pathname;
     router.replace(newUrl);
-    setIsOpen(false);
+    setShowNewTeamModal(false);
   };
 
-  // Don't render if not open or no tenant found
-  if (!isOpen || (!existingTenant && !isLoading && !error)) return null;
+  // Update the close handler to use the context
+  const handleClose = () => {
+    setShowNewTeamModal(false);
+  };
+
+  // Only render if showNewTeamModal is true
+  if (!showNewTeamModal) return null;
 
   return (
-    <Dialog open={isOpen} onClose={() => {}} className="relative z-[1000]">
+    <Dialog
+      open={showNewTeamModal}
+      onClose={handleClose}
+      className="relative z-[1000]"
+    >
       {/* Modal backdrop */}
       <div className="fixed inset-0 bg-[#000]/50" aria-hidden="true" />
 
@@ -155,8 +165,9 @@ export function NewTeamModal() {
           ) : hasRequestedInvite ? (
             <div className="space-y-4">
               <p className="text-neutral-700 dark:text-neutral-200">
-                Your join request has been sent. You can explore on your own
-                while waiting for the team admin to approve your request.
+                Your join request has been sent. You can explore as your own
+                team while waiting for an admin of {appDomain} to approve your
+                request.
               </p>
               <div className="flex w-full pt-2">
                 <Button
@@ -164,7 +175,7 @@ export function NewTeamModal() {
                   onClick={handleContinueToNewOrg}
                   className="flex w-full text-center items-center justify-center"
                 >
-                  Continue to try Onyx
+                  Try Onyx while waiting
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -172,7 +183,7 @@ export function NewTeamModal() {
           ) : (
             <div className="space-y-4">
               <p className="text-neutral-500 dark:text-neutral-200 text-sm mb-2">
-                Your request can be approved by any admin of {appDomain}.
+                Your join request can be approved by any admin of {appDomain}.
               </p>
               <div className="mt-4">
                 <Button

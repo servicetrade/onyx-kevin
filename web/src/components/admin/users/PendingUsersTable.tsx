@@ -96,8 +96,10 @@ const PendingUsersTable = ({
           onClose={() => setUserToApprove(null)}
           onSubmit={() => handleAcceptRequest(userToApprove)}
           actionButtonText="Approve"
-          additionalDetails="This will grant the user access to your team."
+          additionalDetails={`${userToApprove} has requested to join the team. Approving will add them as a user in this team.`}
           variant="action"
+          accent
+          removeConfirmationText
         />
       )}
       <Table className="overflow-visible">

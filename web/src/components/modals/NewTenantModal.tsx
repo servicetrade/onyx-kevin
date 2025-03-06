@@ -16,11 +16,13 @@ const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || "onyx.app";
 interface NewTenantModalProps {
   tenantInfo: NewTenantInfo;
   isInvite?: boolean;
+  onClose?: () => void;
 }
 
 export default function NewTenantModal({
   tenantInfo,
   isInvite = false,
+  onClose,
 }: NewTenantModalProps) {
   const router = useRouter();
   const { setPopup } = usePopup();
@@ -28,6 +30,11 @@ export default function NewTenantModal({
   const [isOpen, setIsOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    onClose?.();
+  };
 
   const handleJoinTenant = async () => {
     setIsLoading(true);
@@ -64,7 +71,7 @@ export default function NewTenantModal({
       // Common logout and redirect for both flows
       await logout();
       router.push(`/auth/join?email=${user?.email}`);
-      setIsOpen(false);
+      handleClose();
     } catch (error) {
       const message =
         error instanceof Error
@@ -106,7 +113,7 @@ export default function NewTenantModal({
         message: "You have declined the invitation.",
         type: "info",
       });
-      setIsOpen(false);
+      handleClose();
     } catch (error) {
       const message =
         error instanceof Error
@@ -126,13 +133,7 @@ export default function NewTenantModal({
   if (!isOpen) return null;
 
   return (
-    <Dialog
-      open={isOpen}
-      onClose={() => {
-        setIsOpen(false);
-      }}
-      className="relative z-[1000]"
-    >
+    <Dialog open={isOpen} onClose={handleClose} className="relative z-[1000]">
       {/* Modal backdrop */}
       <div className="fixed inset-0 bg-[#000]/50" aria-hidden="true" />
 
@@ -141,13 +142,13 @@ export default function NewTenantModal({
           <Dialog.Title className="text-xl font-semibold mb-4 flex items-center">
             {isInvite ? (
               <>
-                You have been invited to join an {APP_DOMAIN} team with{" "}
-                {tenantInfo.number_of_users} users.
+                You have been invited to join {tenantInfo.number_of_users}
+                other teammates of {APP_DOMAIN}.
               </>
             ) : (
               <>
-                Your request to join an {APP_DOMAIN} team with{" "}
-                {tenantInfo.number_of_users + 4} users has been approved.
+                Your request to join {tenantInfo.number_of_users} other users of{" "}
+                {APP_DOMAIN} has been approved.
               </>
             )}
           </Dialog.Title>
@@ -160,14 +161,16 @@ export default function NewTenantModal({
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
               {isInvite ? (
                 <>
-                  By accepting this invitation, you&apos;ll join the team and
-                  have access to all shared resources. You can collaborate with
-                  other members using your email {user?.email}.
+                  By accepting this invitation, you will join the existing{" "}
+                  {APP_DOMAIN} team and lose access to your current team.
+                  <br />
+                  Note: you will lose access to your current assistants,
+                  prompts, chats, and connected sources.
                 </>
               ) : (
                 <>
-                  To finish joining the team, you&apos;ll need to create a new
-                  account with your email, <em>{user?.email}</em>.
+                  To finish joining your team, please reauthenticate with
+                  <em>{user?.email}</em>.
                 </>
               )}
             </p>
@@ -208,7 +211,7 @@ export default function NewTenantModal({
                   </span>
                 ) : (
                   <>
-                    {isInvite ? "Accept Invitation" : "Join Organization"}
+                    {isInvite ? "Accept Invitation" : "Reauthenticate"}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}

@@ -10,6 +10,8 @@ export const ConfirmEntityModal = ({
   actionButtonText,
   includeCancelButton = true,
   variant = "delete",
+  accent = false,
+  removeConfirmationText = false,
 }: {
   entityType: string;
   entityName: string;
@@ -19,6 +21,8 @@ export const ConfirmEntityModal = ({
   actionButtonText?: string;
   includeCancelButton?: boolean;
   variant?: "delete" | "action";
+  accent?: boolean;
+  removeConfirmationText?: boolean;
 }) => {
   const isDeleteVariant = variant === "delete";
   const defaultButtonText = isDeleteVariant ? "Delete" : "Confirm";
@@ -46,9 +50,11 @@ export const ConfirmEntityModal = ({
             {buttonText} {entityType}
           </h2>
         </div>
-        <p className="mb-4">
-          Are you sure you want to {getActionText()} <b>{entityName}</b>?
-        </p>
+        {!removeConfirmationText && (
+          <p className="mb-4">
+            Are you sure you want to {getActionText()} <b>{entityName}</b>?
+          </p>
+        )}
         {additionalDetails && <p className="mb-4">{additionalDetails}</p>}
         <div className="flex justify-end gap-2">
           {includeCancelButton && (
@@ -58,7 +64,9 @@ export const ConfirmEntityModal = ({
           )}
           <Button
             onClick={onSubmit}
-            variant={isDeleteVariant ? "destructive" : "default"}
+            variant={
+              accent ? "agent" : isDeleteVariant ? "destructive" : "default"
+            }
           >
             {buttonText}
           </Button>

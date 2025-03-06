@@ -146,6 +146,7 @@ export function EmailPasswordForm({
             />
 
             <Button
+              variant="agent"
               type="submit"
               disabled={isSubmitting}
               className="mx-auto  !py-4 w-full"
