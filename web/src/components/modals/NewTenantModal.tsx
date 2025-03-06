@@ -169,7 +169,7 @@ export default function NewTenantModal({
                 </>
               ) : (
                 <>
-                  To finish joining your team, please reauthenticate with
+                  To finish joining your team, please reauthenticate with{" "}
                   <em>{user?.email}</em>.
                 </>
               )}

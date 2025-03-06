@@ -55,8 +55,14 @@ export function NewTeamModal() {
       if (!response.ok) {
         throw new Error(`Failed to fetch team info: ${response.status}`);
       }
+      const responseJson = await response.json();
+      if (!responseJson) {
+        setShowNewTeamModal(false);
+        setExistingTenant(null);
+        return;
+      }
 
-      const data = (await response.json()) as TenantByDomainResponse;
+      const data = responseJson as TenantByDomainResponse;
       setExistingTenant(data);
     } catch (error) {
       console.error("Failed to fetch tenant info:", error);
@@ -116,7 +122,7 @@ export function NewTeamModal() {
   };
 
   // Only render if showNewTeamModal is true
-  if (!showNewTeamModal) return null;
+  if (!showNewTeamModal || isLoading) return null;
 
   return (
     <Dialog
