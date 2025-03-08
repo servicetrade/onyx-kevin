@@ -100,6 +100,7 @@ from onyx.utils.logger import setup_logger
 from onyx.utils.telemetry import create_milestone_and_report
 from onyx.utils.telemetry import optional_telemetry
 from onyx.utils.telemetry import RecordType
+from onyx.utils.url import add_url_params
 from onyx.utils.variable_functionality import fetch_ee_implementation_or_noop
 from onyx.utils.variable_functionality import fetch_versioned_implementation
 from shared_configs.configs import async_return_default_schema
@@ -1134,17 +1135,11 @@ def get_oauth_router(
         await user_manager.on_after_login(user, request, response)
         # Prepare redirect response
         if tenant_id is None:
-            if "?" in next_url:
-                redirect_response = RedirectResponse(
-                    f"{next_url}&new_team=true", status_code=302
-                )
-            else:
-                redirect_response = RedirectResponse(
-                    f"{next_url}?new_team=true", status_code=302
-                )
-
+            # Use URL utility to add parameters
+            redirect_url = add_url_params(next_url, {"new_team": "true"})
+            redirect_response = RedirectResponse(redirect_url, status_code=302)
         else:
-            # Add new_team parameter to the redirect URL
+            # No parameters to add
             redirect_response = RedirectResponse(next_url, status_code=302)
 
         # Copy headers and other attributes from 'response' to 'redirect_response'

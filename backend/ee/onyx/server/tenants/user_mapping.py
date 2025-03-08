@@ -156,50 +156,57 @@ def accept_user_invite(email: str, tenant_id: str) -> None:
     This activates the user's mapping to the tenant.
     """
     with get_session_with_shared_schema() as db_session:
-        # First check if there's an active mapping for this user and tenant
-        active_mapping = (
-            db_session.query(UserTenantMapping)
-            .filter(
-                UserTenantMapping.email == email,
-                UserTenantMapping.active == True,  # noqa: E712
-            )
-            .first()
-        )
-
-        # If an active mapping exists, delete it
-        if active_mapping:
-            db_session.delete(active_mapping)
-            db_session.commit()
-            logger.info(
-                f"Deleted existing active mapping for user {email} in tenant {tenant_id}"
+        try:
+            # First check if there's an active mapping for this user and tenant
+            active_mapping = (
+                db_session.query(UserTenantMapping)
+                .filter(
+                    UserTenantMapping.email == email,
+                    UserTenantMapping.active == True,  # noqa: E712
+                )
+                .first()
             )
 
-        # Find the inactive mapping for this user and tenant
-        mapping = (
-            db_session.query(UserTenantMapping)
-            .filter(
-                UserTenantMapping.email == email,
-                UserTenantMapping.tenant_id == tenant_id,
-                UserTenantMapping.active == False,  # noqa: E712
-            )
-            .first()
-        )
+            # If an active mapping exists, delete it
+            if active_mapping:
+                db_session.delete(active_mapping)
+                logger.info(
+                    f"Deleted existing active mapping for user {email} in tenant {tenant_id}"
+                )
 
-        if mapping:
-            # Set all other mappings for this user to inactive
-            db_session.query(UserTenantMapping).filter(
-                UserTenantMapping.email == email,
-                UserTenantMapping.active == True,  # noqa: E712
-            ).update({"active": False})
-
-            # Activate this mapping
-            mapping.active = True
-            db_session.commit()
-            logger.info(f"User {email} accepted invitation to tenant {tenant_id}")
-        else:
-            logger.warning(
-                f"No invitation found for user {email} in tenant {tenant_id}"
+            # Find the inactive mapping for this user and tenant
+            mapping = (
+                db_session.query(UserTenantMapping)
+                .filter(
+                    UserTenantMapping.email == email,
+                    UserTenantMapping.tenant_id == tenant_id,
+                    UserTenantMapping.active == False,  # noqa: E712
+                )
+                .first()
             )
+
+            if mapping:
+                # Set all other mappings for this user to inactive
+                db_session.query(UserTenantMapping).filter(
+                    UserTenantMapping.email == email,
+                    UserTenantMapping.active == True,  # noqa: E712
+                ).update({"active": False})
+
+                # Activate this mapping
+                mapping.active = True
+                db_session.commit()
+                logger.info(f"User {email} accepted invitation to tenant {tenant_id}")
+            else:
+                logger.warning(
+                    f"No invitation found for user {email} in tenant {tenant_id}"
+                )
+
+        except Exception as e:
+            db_session.rollback()
+            logger.exception(
+                f"Failed to accept invitation for user {email} to tenant {tenant_id}: {str(e)}"
+            )
+            raise
 
 
 def deny_user_invite(email: str, tenant_id: str) -> None:
