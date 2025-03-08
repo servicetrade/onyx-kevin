@@ -21,7 +21,7 @@ logger = setup_logger()
 router = APIRouter(prefix="/tenants")
 
 
-@router.post("/request-invite")
+@router.post("/users/invite/request")
 async def request_invite(
     invite_request: RequestInviteRequest,
     user: User | None = Depends(current_admin_user),
@@ -45,7 +45,7 @@ def list_pending_users(
     return [PendingUserSnapshot(email=email) for email in pending_emails]
 
 
-@router.post("/users/approve-invite")
+@router.post("/users/invite/approve")
 async def approve_user(
     approve_user_request: ApproveUserRequest,
     _: User | None = Depends(current_admin_user),
@@ -54,7 +54,7 @@ async def approve_user(
     approve_user_invite(approve_user_request.email, tenant_id)
 
 
-@router.post("/users/accept-invite")
+@router.post("/users/invite/accept")
 async def accept_invite(
     invite_request: RequestInviteRequest,
     user: User | None = Depends(current_user),
@@ -72,7 +72,7 @@ async def accept_invite(
         raise HTTPException(status_code=500, detail="Failed to accept invitation")
 
 
-@router.post("/users/deny-invite")
+@router.post("/users/invite/deny")
 async def deny_invite(
     invite_request: RequestInviteRequest,
     user: User | None = Depends(current_user),

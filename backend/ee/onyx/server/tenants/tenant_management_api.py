@@ -19,7 +19,6 @@ FORBIDDEN_COMMON_EMAIL_SUBSTRINGS = [
     "hotmail",
     "icloud",
     "msn",
-    "live",
     "hotmail",
     "hotmail.co.uk",
 ]

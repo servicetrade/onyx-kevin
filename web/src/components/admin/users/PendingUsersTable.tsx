@@ -70,7 +70,7 @@ const PendingUsersTable = ({
 
   const handleAcceptRequest = async (email: string) => {
     try {
-      await fetch("/api/tenants/users/approve-invite", {
+      await fetch("/api/tenants/users/invite/approve", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -96,6 +96,7 @@ const PendingUsersTable = ({
           onClose={() => setUserToApprove(null)}
           onSubmit={() => handleAcceptRequest(userToApprove)}
           actionButtonText="Approve"
+          actionText="approve the join request of"
           additionalDetails={`${userToApprove} has requested to join the team. Approving will add them as a user in this team.`}
           variant="action"
           accent

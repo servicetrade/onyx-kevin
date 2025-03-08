@@ -79,7 +79,7 @@ export function NewTeamModal() {
     setError(null);
 
     try {
-      const response = await fetch("/api/tenants/request-invite", {
+      const response = await fetch("/api/tenants/users/invite/request", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

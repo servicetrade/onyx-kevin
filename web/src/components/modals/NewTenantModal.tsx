@@ -43,7 +43,7 @@ export default function NewTenantModal({
     try {
       if (isInvite) {
         // Accept the invitation through the API
-        const response = await fetch("/api/tenants/users/accept-invite", {
+        const response = await fetch("/api/tenants/users/invite/accept", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -70,7 +70,7 @@ export default function NewTenantModal({
 
       // Common logout and redirect for both flows
       await logout();
-      router.push(`/auth/join?email=${user?.email}`);
+      router.push(`/auth/join?email=${encodeURIComponent(user?.email || "")}`);
       handleClose();
     } catch (error) {
       const message =
@@ -96,7 +96,7 @@ export default function NewTenantModal({
 
     try {
       // Deny the invitation through the API
-      const response = await fetch("/api/tenants/users/deny-invite", {
+      const response = await fetch("/api/tenants/users/invite/deny", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -8,6 +8,7 @@ export const ConfirmEntityModal = ({
   entityName,
   additionalDetails,
   actionButtonText,
+  actionText,
   includeCancelButton = true,
   variant = "delete",
   accent = false,
@@ -19,6 +20,7 @@ export const ConfirmEntityModal = ({
   onSubmit: () => void;
   additionalDetails?: string;
   actionButtonText?: string;
+  actionText?: string;
   includeCancelButton?: boolean;
   variant?: "delete" | "action";
   accent?: boolean;
@@ -29,17 +31,10 @@ export const ConfirmEntityModal = ({
   const buttonText = actionButtonText || defaultButtonText;
 
   const getActionText = () => {
-    if (isDeleteVariant) {
-      return "delete";
+    if (actionText) {
+      return actionText;
     }
-    switch (entityType) {
-      case "Default Persona":
-        return "change the default status of";
-      case "Join Request":
-        return "approve the join request of";
-      default:
-        return "modify";
-    }
+    return isDeleteVariant ? "delete" : "modify";
   };
 
   return (
