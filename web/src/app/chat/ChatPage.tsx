@@ -2447,7 +2447,7 @@ export function ChatPage({
                                   h-full
                                   ${sidebarVisible ? "w-[200px]" : "w-[0px]"}
                               `}
-                                ></div>
+                                />
                               )}
                             </div>
                           )}

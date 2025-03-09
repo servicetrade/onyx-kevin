@@ -52,7 +52,7 @@ const Page = async (props: {
   // if user is already logged in, take them to the main app page
   if (currentUser && currentUser.is_active && !currentUser.is_anonymous_user) {
     if (!authTypeMetadata?.requiresVerification || currentUser.is_verified) {
-      return redirect("/chat?new_team=true");
+      return redirect("/chat");
     }
     return redirect("/auth/waiting-on-verification");
   }
@@ -60,7 +60,7 @@ const Page = async (props: {
 
   // only enable this page if basic login is enabled
   if (authTypeMetadata?.authType !== "basic" && !cloud) {
-    return redirect("/chat?new_team=true");
+    return redirect("/chat");
   }
 
   let authUrl: string | null = null;
@@ -78,7 +78,7 @@ const Page = async (props: {
         <div className="absolute top-10x w-full"></div>
         <div className="flex w-full flex-col justify-center">
           <h2 className="text-center text-xl text-strong font-bold">
-            Re-authenticate to create account in new team
+            Re-authenticate to join team
           </h2>
 
           {cloud && authUrl && (

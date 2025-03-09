@@ -103,7 +103,7 @@ export function EmailPasswordForm({
               // See above comment
               window.location.href = nextUrl
                 ? encodeURI(nextUrl)
-                : `/chat${isSignup ? "?new_team=true" : ""}`;
+                : `/chat${isSignup && !isJoin ? "?new_team=true" : ""}`;
             }
           } else {
             setIsWorking(false);
