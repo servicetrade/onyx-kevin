@@ -49,13 +49,19 @@ export interface LLMProvider {
   groups: number[];
   display_model_names: string[] | null;
   deployment_name: string | null;
+  default_vision_model: string | null;
+  is_default_vision_provider: boolean | null;
 }
 
-export interface FullLLMProvider extends LLMProvider {
+export interface LLMProviderView extends LLMProvider {
   id: number;
   is_default_provider: boolean | null;
   model_names: string[];
   icon?: React.FC<{ size?: number; className?: string }>;
+}
+
+export interface VisionProvider extends LLMProviderView {
+  vision_models: string[];
 }
 
 export interface LLMProviderDescriptor {

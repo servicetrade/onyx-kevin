@@ -14,7 +14,7 @@ import {
 import { useState } from "react";
 import { useSWRConfig } from "swr";
 import { defaultModelsByProvider, getDisplayNameForModel } from "@/lib/hooks";
-import { FullLLMProvider, WellKnownLLMProviderDescriptor } from "./interfaces";
+import { LLMProviderView, WellKnownLLMProviderDescriptor } from "./interfaces";
 import { PopupSpec } from "@/components/admin/connectors/Popup";
 import * as Yup from "yup";
 import isEqual from "lodash/isEqual";
@@ -31,7 +31,7 @@ export function LLMProviderUpdateForm({
 }: {
   llmProviderDescriptor: WellKnownLLMProviderDescriptor;
   onClose: () => void;
-  existingLlmProvider?: FullLLMProvider;
+  existingLlmProvider?: LLMProviderView;
   shouldMarkAsDefault?: boolean;
   hideAdvanced?: boolean;
   setPopup?: (popup: PopupSpec) => void;
@@ -184,7 +184,7 @@ export function LLMProviderUpdateForm({
         }
 
         if (shouldMarkAsDefault) {
-          const newLlmProvider = (await response.json()) as FullLLMProvider;
+          const newLlmProvider = (await response.json()) as LLMProviderView;
           const setDefaultResponse = await fetch(
             `${LLM_PROVIDERS_ADMIN_URL}/${newLlmProvider.id}/default`,
             {
