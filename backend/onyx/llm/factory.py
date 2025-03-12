@@ -7,7 +7,7 @@ from onyx.configs.model_configs import GEN_AI_TEMPERATURE
 from onyx.db.engine import get_session_context_manager
 from onyx.db.llm import fetch_default_provider
 from onyx.db.llm import fetch_existing_llm_providers
-from onyx.db.llm import fetch_provider
+from onyx.db.llm import fetch_llm_provider_view
 from onyx.db.models import Persona
 from onyx.llm.chat_llm import DefaultMultiLLM
 from onyx.llm.exceptions import GenAIDisabledException
@@ -59,7 +59,7 @@ def get_llms_for_persona(
         )
 
     with get_session_context_manager() as db_session:
-        llm_provider = fetch_provider(db_session, provider_name)
+        llm_provider = fetch_llm_provider_view(db_session, provider_name)
 
     if not llm_provider:
         raise ValueError("No LLM provider found")

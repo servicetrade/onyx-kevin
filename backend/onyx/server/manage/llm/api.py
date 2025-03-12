@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from onyx.auth.users import current_admin_user
 from onyx.auth.users import current_chat_accessible_user
 from onyx.db.engine import get_session
+from onyx.db.llm import fetch_existing_llm_provider
 from onyx.db.llm import fetch_existing_llm_providers
 from onyx.db.llm import fetch_existing_llm_providers_for_user
-from onyx.db.llm import fetch_provider
 from onyx.db.llm import remove_llm_provider
 from onyx.db.llm import update_default_provider
 from onyx.db.llm import upsert_llm_provider
@@ -22,9 +22,9 @@ from onyx.llm.llm_provider_options import fetch_available_well_known_llms
 from onyx.llm.llm_provider_options import WellKnownLLMProviderDescriptor
 from onyx.llm.utils import litellm_exception_to_error_msg
 from onyx.llm.utils import test_llm
-from onyx.server.manage.llm.models import FullLLMProvider
 from onyx.server.manage.llm.models import LLMProviderDescriptor
 from onyx.server.manage.llm.models import LLMProviderUpsertRequest
+from onyx.server.manage.llm.models import LLMProviderView
 from onyx.server.manage.llm.models import TestLLMRequest
 from onyx.utils.logger import setup_logger
 from onyx.utils.threadpool_concurrency import run_functions_tuples_in_parallel
@@ -116,11 +116,17 @@ def test_default_provider(
 def list_llm_providers(
     _: User | None = Depends(current_admin_user),
     db_session: Session = Depends(get_session),
-) -> list[FullLLMProvider]:
-    return [
-        FullLLMProvider.from_model(llm_provider_model)
-        for llm_provider_model in fetch_existing_llm_providers(db_session)
-    ]
+) -> list[LLMProviderView]:
+    llm_provider_list: list[LLMProviderView] = []
+    for llm_provider_model in fetch_existing_llm_providers(db_session):
+        full_llm_provider = LLMProviderView.from_model(llm_provider_model)
+        if full_llm_provider.api_key:
+            full_llm_provider.api_key = (
+                full_llm_provider.api_key[:4] + "****" + full_llm_provider.api_key[-4:]
+            )
+        llm_provider_list.append(full_llm_provider)
+
+    return llm_provider_list
 
 
 @admin_router.put("/provider")
@@ -132,11 +138,11 @@ def put_llm_provider(
     ),
     _: User | None = Depends(current_admin_user),
     db_session: Session = Depends(get_session),
-) -> FullLLMProvider:
+) -> LLMProviderView:
     # validate request (e.g. if we're intending to create but the name already exists we should throw an error)
     # NOTE: may involve duplicate fetching to Postgres, but we're assuming SQLAlchemy is smart enough to cache
     # the result
-    existing_provider = fetch_provider(db_session, llm_provider.name)
+    existing_provider = fetch_existing_llm_provider(llm_provider.name, db_session)
     if existing_provider and is_creation:
         raise HTTPException(
             status_code=400,
@@ -157,6 +163,11 @@ def put_llm_provider(
             llm_provider.display_model_names.append(
                 llm_provider.fast_default_model_name
             )
+
+    # the llm api key is sanitized when returned to clients, so the only time we
+    # should get a real key is when it is explicitly changed
+    if existing_provider and not llm_provider.api_key_changed:
+        llm_provider.api_key = existing_provider.api_key
 
     try:
         return upsert_llm_provider(

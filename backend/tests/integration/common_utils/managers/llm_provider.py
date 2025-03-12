@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import requests
 
-from onyx.server.manage.llm.models import FullLLMProvider
 from onyx.server.manage.llm.models import LLMProviderUpsertRequest
+from onyx.server.manage.llm.models import LLMProviderView
 from tests.integration.common_utils.constants import API_SERVER_URL
 from tests.integration.common_utils.constants import GENERAL_HEADERS
 from tests.integration.common_utils.test_models import DATestLLMProvider
@@ -39,6 +39,7 @@ class LLMProviderManager:
             groups=groups or [],
             display_model_names=None,
             model_names=None,
+            api_key_changed=True,
         )
 
         llm_response = requests.put(
@@ -90,7 +91,7 @@ class LLMProviderManager:
     @staticmethod
     def get_all(
         user_performing_action: DATestUser | None = None,
-    ) -> list[FullLLMProvider]:
+    ) -> list[LLMProviderView]:
         response = requests.get(
             f"{API_SERVER_URL}/admin/llm/provider",
             headers=user_performing_action.headers
@@ -98,7 +99,7 @@ class LLMProviderManager:
             else GENERAL_HEADERS,
         )
         response.raise_for_status()
-        return [FullLLMProvider(**ug) for ug in response.json()]
+        return [LLMProviderView(**ug) for ug in response.json()]
 
     @staticmethod
     def verify(

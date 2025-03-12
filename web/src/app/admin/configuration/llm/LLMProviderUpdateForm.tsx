@@ -73,6 +73,7 @@ export function LLMProviderUpdateForm({
       defaultModelsByProvider[llmProviderDescriptor.name] ||
       [],
     deployment_name: existingLlmProvider?.deployment_name,
+    api_key_changed: false,
   };
 
   // Setup validation schema if required
@@ -113,6 +114,7 @@ export function LLMProviderUpdateForm({
     is_public: Yup.boolean().required(),
     groups: Yup.array().of(Yup.number()),
     display_model_names: Yup.array().of(Yup.string()),
+    api_key_changed: Yup.boolean(),
   });
 
   return (
@@ -121,6 +123,8 @@ export function LLMProviderUpdateForm({
       validationSchema={validationSchema}
       onSubmit={async (values, { setSubmitting }) => {
         setSubmitting(true);
+
+        values.api_key_changed = values.api_key !== initialValues.api_key;
 
         // test the configuration
         if (!isEqual(values, initialValues)) {
