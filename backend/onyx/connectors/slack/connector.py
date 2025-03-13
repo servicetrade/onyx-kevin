@@ -34,8 +34,8 @@ from onyx.connectors.models import ConnectorMissingCredentialError
 from onyx.connectors.models import Document
 from onyx.connectors.models import DocumentFailure
 from onyx.connectors.models import EntityFailure
-from onyx.connectors.models import Section
 from onyx.connectors.models import SlimDocument
+from onyx.connectors.models import TextSection
 from onyx.connectors.slack.utils import expert_info_from_slack_id
 from onyx.connectors.slack.utils import get_message_link
 from onyx.connectors.slack.utils import make_paginated_slack_api_call_w_retries
@@ -211,7 +211,7 @@ def thread_to_doc(
     return Document(
         id=_build_doc_id(channel_id=channel_id, thread_ts=thread[0]["ts"]),
         sections=[
-            Section(
+            TextSection(
                 link=get_message_link(event=m, client=client, channel_id=channel_id),
                 text=slack_cleaner.index_clean(cast(str, m["text"])),
             )
@@ -481,6 +481,8 @@ def _process_message(
 
 
 class SlackConnector(SlimConnector, CheckpointConnector):
+    MAX_WORKERS = 2
+
     def __init__(
         self,
         channels: list[str] | None = None,
@@ -594,7 +596,7 @@ class SlackConnector(SlimConnector, CheckpointConnector):
             new_latest = message_batch[-1]["ts"] if message_batch else latest
 
             # Process messages in parallel using ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=8) as executor:
+            with ThreadPoolExecutor(max_workers=SlackConnector.MAX_WORKERS) as executor:
                 futures: list[Future] = []
                 for message in message_batch:
                     # Capture the current context so that the thread gets the current tenant ID
