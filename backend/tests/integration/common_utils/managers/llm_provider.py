@@ -112,18 +112,19 @@ class LLMProviderManager:
             if llm_provider.id == fetched_llm_provider.id:
                 if verify_deleted:
                     raise ValueError(
-                        f"User group {llm_provider.id} found but should be deleted"
+                        f"LLM Provider {llm_provider.id} found but should be deleted"
                     )
                 fetched_llm_groups = set(fetched_llm_provider.groups)
                 llm_provider_groups = set(llm_provider.groups)
+
+                # NOTE: returned api keys are sanitized and should not match
                 if (
                     fetched_llm_groups == llm_provider_groups
                     and llm_provider.provider == fetched_llm_provider.provider
-                    and llm_provider.api_key == fetched_llm_provider.api_key
                     and llm_provider.default_model_name
                     == fetched_llm_provider.default_model_name
                     and llm_provider.is_public == fetched_llm_provider.is_public
                 ):
                     return
         if not verify_deleted:
-            raise ValueError(f"User group {llm_provider.id} not found")
+            raise ValueError(f"LLM Provider {llm_provider.id} not found")
