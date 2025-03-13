@@ -122,6 +122,7 @@ def test_update_llm_provider_model_names(reset: None) -> None:
     )
     assert response.status_code == 200
     provider_data = _get_provider_by_id(admin_user, created_provider["id"])
+    assert provider_data is not None
     assert provider_data["api_key"] == "sk-0****0001"  # test that key was updated
 
 
