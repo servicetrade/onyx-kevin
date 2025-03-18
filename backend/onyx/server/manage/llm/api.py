@@ -49,11 +49,27 @@ def fetch_llm_options(
 def test_llm_configuration(
     test_llm_request: TestLLMRequest,
     _: User | None = Depends(current_admin_user),
+    db_session: Session = Depends(get_session),
 ) -> None:
+    """Test regular llm and fast llm settings"""
+
+    # the api key is sanitized if we are testing a provider already in the system
+
+    test_api_key = test_llm_request.api_key
+    if test_llm_request.name:
+        # NOTE: we are querying by name. we probably should be querying by an invariant id, but
+        # as it turns out the name is not editable in the UI and other code also keys off name,
+        # so we won't rock the boat just yet.
+        existing_provider = fetch_existing_llm_provider(
+            test_llm_request.name, db_session
+        )
+        if existing_provider:
+            test_api_key = existing_provider.api_key
+
     llm = get_llm(
         provider=test_llm_request.provider,
         model=test_llm_request.default_model_name,
-        api_key=test_llm_request.api_key,
+        api_key=test_api_key,
         api_base=test_llm_request.api_base,
         api_version=test_llm_request.api_version,
         custom_config=test_llm_request.custom_config,
@@ -69,7 +85,7 @@ def test_llm_configuration(
         fast_llm = get_llm(
             provider=test_llm_request.provider,
             model=test_llm_request.fast_default_model_name,
-            api_key=test_llm_request.api_key,
+            api_key=test_api_key,
             api_base=test_llm_request.api_base,
             api_version=test_llm_request.api_version,
             custom_config=test_llm_request.custom_config,
