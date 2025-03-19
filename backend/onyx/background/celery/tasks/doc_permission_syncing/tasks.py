@@ -46,7 +46,6 @@ from onyx.configs.constants import OnyxRedisSignals
 from onyx.connectors.factory import validate_ccpair_for_user
 from onyx.db.connector import mark_cc_pair_as_permissions_synced
 from onyx.db.connector_credential_pair import get_connector_credential_pair_from_id
-from onyx.db.connector_credential_pair import update_connector_credential_pair
 from onyx.db.document import upsert_document_by_connector_credential_pair
 from onyx.db.engine import get_session_with_current_tenant
 from onyx.db.enums import AccessType
@@ -420,12 +419,7 @@ def connector_permission_sync_generator_task(
                 task_logger.exception(
                     f"validate_ccpair_permissions_sync exceptioned: cc_pair={cc_pair_id}"
                 )
-                update_connector_credential_pair(
-                    db_session=db_session,
-                    connector_id=cc_pair.connector.id,
-                    credential_id=cc_pair.credential.id,
-                    status=ConnectorCredentialPairStatus.INVALID,
-                )
+                # TODO: add some notification to the admins here
                 raise
 
             source_type = cc_pair.connector.source
@@ -453,23 +447,23 @@ def connector_permission_sync_generator_task(
             redis_connector.permissions.set_fence(new_payload)
 
             callback = PermissionSyncCallback(redis_connector, lock, r)
-            document_external_accesses: list[DocExternalAccess] = doc_sync_func(
-                cc_pair, callback
-            )
+            document_external_accesses = doc_sync_func(cc_pair, callback)
 
             task_logger.info(
                 f"RedisConnector.permissions.generate_tasks starting. cc_pair={cc_pair_id}"
             )
-            tasks_generated = redis_connector.permissions.generate_tasks(
-                celery_app=self.app,
-                lock=lock,
-                new_permissions=document_external_accesses,
-                source_string=source_type,
-                connector_id=cc_pair.connector.id,
-                credential_id=cc_pair.credential.id,
-            )
-            if tasks_generated is None:
-                return None
+
+            tasks_generated = 0
+            for doc_external_access in document_external_accesses:
+                redis_connector.permissions.generate_tasks(
+                    celery_app=self.app,
+                    lock=lock,
+                    new_permissions=[doc_external_access],
+                    source_string=source_type,
+                    connector_id=cc_pair.connector.id,
+                    credential_id=cc_pair.credential.id,
+                )
+                tasks_generated += 1
 
             task_logger.info(
                 f"RedisConnector.permissions.generate_tasks finished. "
