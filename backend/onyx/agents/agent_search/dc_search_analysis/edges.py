@@ -21,7 +21,7 @@ def parallel_object_source_research_edge(
     """
     LangGraph edge to parallelize the research for an individual object and source
     """
-    cast(GraphConfig, config["metadata"]["config"])
+
     search_objects = state.analysis_objects
     search_sources = state.analysis_sources
 

@@ -32,7 +32,7 @@ logger = setup_logger()
 test_mode = False
 
 
-def dc_graph_builder(test_mode: bool = False) -> StateGraph:
+def divide_and_conquer_graph_builder(test_mode: bool = False) -> StateGraph:
     """
     LangGraph graph builder for the knowledge graph  search process.
     """

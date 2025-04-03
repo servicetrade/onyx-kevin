@@ -8,7 +8,9 @@ from langgraph.graph.state import CompiledStateGraph
 
 from onyx.agents.agent_search.basic.graph_builder import basic_graph_builder
 from onyx.agents.agent_search.basic.states import BasicInput
-from onyx.agents.agent_search.dc_search_analysis.graph_builder import dc_graph_builder
+from onyx.agents.agent_search.dc_search_analysis.graph_builder import (
+    divide_and_conquer_graph_builder,
+)
 from onyx.agents.agent_search.dc_search_analysis.states import MainInput as DCMainInput
 from onyx.agents.agent_search.deep_search.main.graph_builder import (
     main_graph_builder as main_graph_builder_a,
@@ -151,7 +153,7 @@ def run_basic_graph(
 def run_dc_graph(
     config: GraphConfig,
 ) -> AnswerStream:
-    graph = dc_graph_builder()
+    graph = divide_and_conquer_graph_builder()
     compiled_graph = graph.compile()
     input = DCMainInput(log_messages=[])
     config.inputs.search_request.query = config.inputs.search_request.query.strip()

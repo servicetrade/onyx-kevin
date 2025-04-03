@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import cast
 
 from langchain_core.messages import HumanMessage
@@ -33,7 +32,6 @@ def search_objects(
     """
     LangGraph node to start the agentic search process.
     """
-    datetime.now()
 
     graph_config = cast(GraphConfig, config["metadata"]["config"])
     question = graph_config.inputs.search_request.query
