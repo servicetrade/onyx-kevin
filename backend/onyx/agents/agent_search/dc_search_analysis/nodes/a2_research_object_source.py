@@ -117,8 +117,11 @@ def research_object_source(
 
     # Built prompt
 
+    today = datetime.now().strftime("%A, %Y-%m-%d")
+
     dc_object_source_research_prompt = (
         DC_OBJECT_SOURCE_RESEARCH_PROMPT.format(
+            today=today,
             question=question,
             task=agent_2_task,
             document_text=document_texts,

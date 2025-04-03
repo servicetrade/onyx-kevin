@@ -56,8 +56,8 @@ separated by ';'>
 
 
 DC_OBJECT_SOURCE_RESEARCH_PROMPT = f"""
-You are an expert in extracting relevant structured information from a list of documents that should relate to one \
-object. (Try to make sure that you know it relates to that one object!).
+Today is {{today}}. You are an expert in extracting relevant structured information from a list of documents that \
+should relate to one object. (Try to make sure that you know it relates to that one object!).
 You should look at the documents - in no particular order! - and extract the information asked for this task:
 {SEPARATOR_LINE}
 {{task}}
