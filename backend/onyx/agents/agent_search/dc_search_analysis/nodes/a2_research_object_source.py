@@ -76,7 +76,7 @@ def research_object_source(
 
     # Retrieve chunks for objects
 
-    if agent_2_time_cutoff is not None:
+    if agent_2_time_cutoff is not None and agent_2_time_cutoff.strip() != "":
         if agent_2_time_cutoff.strip().endswith("d"):
             try:
                 days = int(agent_2_time_cutoff.strip()[:-1])
