@@ -302,6 +302,8 @@ class SearchTool(Tool[SearchToolOverrideKwargs]):
             user_file_ids = override_kwargs.user_file_ids
             user_folder_ids = override_kwargs.user_folder_ids
             ordering_only = use_alt_not_None(override_kwargs.ordering_only, False)
+            override_kwargs.document_sources
+            override_kwargs.time_cutoff
 
         # Fast path for ordering-only search
         if ordering_only:
@@ -333,6 +335,25 @@ class SearchTool(Tool[SearchToolOverrideKwargs]):
                 user_file_ids=user_file_ids, user_folder_ids=user_folder_ids
             )
             retrieval_options = RetrievalDetails(filters=filters)
+
+        if override_kwargs and (
+            override_kwargs.document_sources or override_kwargs.time_cutoff
+        ):
+            # Get retrieval_options and filters, or create if they don't exist
+            retrieval_options = retrieval_options or RetrievalDetails()
+            retrieval_options.filters = retrieval_options.filters or BaseFilters()
+
+            # Handle document sources
+            if override_kwargs.document_sources:
+                source_types = retrieval_options.filters.source_type or []
+                retrieval_options.filters.source_type = list(
+                    set(source_types + override_kwargs.document_sources)
+                )
+
+            # Handle time cutoff
+            if override_kwargs.time_cutoff:
+                # Overwrite time-cutoff should superceed existing time-cutoff
+                retrieval_options.filters.time_cutoff = override_kwargs.time_cutoff
 
         search_pipeline = SearchPipeline(
             search_request=SearchRequest(

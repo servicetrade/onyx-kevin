@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import StreamWriter
 
+from onyx.agents.agent_search.dc_search_analysis.ops import extract_section
 from onyx.agents.agent_search.dc_search_analysis.states import MainState
 from onyx.agents.agent_search.dc_search_analysis.states import ResearchUpdate
 from onyx.agents.agent_search.models import GraphConfig
@@ -34,7 +35,7 @@ def consolidate_research(
     write_custom_event(
         "initial_agent_answer",
         AgentAnswerPiece(
-            answer_piece=" Generating the answer\n\n\n",
+            answer_piece=" generating the answer\n\n\n",
             level=0,
             level_question_num=0,
             answer_type="agent_level_answer",
@@ -48,17 +49,27 @@ def consolidate_research(
     # Populate prompt
     instructions = graph_config.inputs.search_request.persona.prompts[0].system_prompt
 
-    agent_5_instructions = instructions.split("Agent Step 5:")[1].split("Agent End")[0]
-
-    if "|Start Data|" and "|End Data|" in instructions:
-        agent_5_base_data = instructions.split("|Start Data|")[1].split("|End Data|")[0]
-    else:
-        agent_5_base_data = None
-
-    agent_5_task = agent_5_instructions.split("Task:")[1].split("Independent Sources:")[
-        0
-    ]
-    agent_5_output_objective = agent_5_instructions.split("Output Objective:")[1]
+    try:
+        agent_5_instructions = extract_section(
+            instructions, "Agent Step 5:", "Agent End"
+        )
+        if agent_5_instructions is None:
+            raise ValueError("Agent 5 instructions not found")
+        agent_5_base_data = extract_section(instructions, "|Start Data|", "|End Data|")
+        agent_5_task = extract_section(
+            agent_5_instructions, "Task:", "Independent Research Sources:"
+        )
+        if agent_5_task is None:
+            raise ValueError("Agent 5 task not found")
+        agent_5_output_objective = extract_section(
+            agent_5_instructions, "Output Objective:"
+        )
+        if agent_5_output_objective is None:
+            raise ValueError("Agent 5 output objective not found")
+    except ValueError as e:
+        raise ValueError(
+            f"Instructions for Agent Step 5 were not properly formatted: {e}"
+        )
 
     research_result_list = []
 
@@ -68,19 +79,25 @@ def consolidate_research(
         for object_research_result in object_research_results:
             object = object_research_result["object"]
             research_result = object_research_result["research_result"]
-            research_result_list.append(f"Course: {object}\n\n{research_result}")
+            research_result_list.append(f"Object: {object}\n\n{research_result}")
 
-    research_results = "\n\n".join(research_result_list)
+        research_results = "\n\n".join(research_result_list)
+
+    else:
+        raise NotImplementedError("Only '*concatenate*' is currently supported")
 
     # Create a prompt for the object consolidation
 
     if agent_5_base_data is None:
         dc_formatting_prompt = DC_FORMATTING_NO_BASE_DATA_PROMPT.format(
-            text=research_results, format=agent_5_output_objective
+            text=research_results,
+            format=agent_5_output_objective,
         )
     else:
         dc_formatting_prompt = DC_FORMATTING_WITH_BASE_DATA_PROMPT.format(
-            text=research_results, format=agent_5_output_objective
+            base_data=agent_5_base_data,
+            text=research_results,
+            format=agent_5_output_objective,
         )
 
     # Run LLM
@@ -93,11 +110,12 @@ def consolidate_research(
 
     dispatch_timings: list[float] = []
 
-    fast_model = graph_config.tooling.fast_llm
+    # fast_model = graph_config.tooling.fast_llm
+    primary_model = graph_config.tooling.primary_llm
 
     def stream_initial_answer() -> list[str]:
         response: list[str] = []
-        for message in fast_model.stream(msg, timeout_override=30, max_tokens=None):
+        for message in primary_model.stream(msg, timeout_override=30, max_tokens=None):
             # TODO: in principle, the answer here COULD contain images, but we don't support that yet
             content = message.content
             if not isinstance(content, str):
@@ -131,6 +149,8 @@ def consolidate_research(
 
     except Exception as e:
         raise ValueError(f"Error in consolidate_research: {e}")
+
+    logger.debug("DivCon Step A5 - Final Generation - completed")
 
     return ResearchUpdate(
         research_results=research_results,

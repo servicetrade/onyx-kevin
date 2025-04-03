@@ -39,3 +39,16 @@ def research(
                 retrieved_docs = cast(list[LlmDoc], tool_response.response)[:10]
                 break
     return retrieved_docs
+
+
+def extract_section(
+    text: str, start_marker: str, end_marker: str | None = None
+) -> str | None:
+    """Extract text between markers, returning None if markers not found"""
+    try:
+        parts = text.split(start_marker)[1]
+        if end_marker:
+            return parts.split(end_marker)[0]
+        return parts
+    except IndexError:
+        return None

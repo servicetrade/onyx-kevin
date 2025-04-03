@@ -20,7 +20,7 @@ Here is the task you are asked to find the objects of type for, which should
 {SEPARATOR_LINE}
 {{task}}
 {SEPARATOR_LINE}
-Here is the question that provides critical context for the task:
+Here is the question that may provide critical additional context for the task:
 {SEPARATOR_LINE}
 {{question}}
 {SEPARATOR_LINE}
@@ -44,7 +44,7 @@ Here is the task you are asked to find the objects of type for, which should
 {SEPARATOR_LINE}
 {{task}}
 {SEPARATOR_LINE}
-Here is the request that provides critical context for the task:
+Here is the request that may provide critical additional context for the task:
 {SEPARATOR_LINE}
 {{question}}
 {SEPARATOR_LINE}
@@ -61,6 +61,12 @@ You should look at the documents - in no particular order! - and extract the inf
 {SEPARATOR_LINE}
 {{task}}
 {SEPARATOR_LINE}
+
+Here is the user question that may provide critical additional context for the task:
+{SEPARATOR_LINE}
+{{question}}
+{SEPARATOR_LINE}
+
 Here are the documents you are supposed to search through:
 --
 {{document_text}}
@@ -86,6 +92,11 @@ and the information is
 {SEPARATOR_LINE}
 {{information}}
 {SEPARATOR_LINE}
+Here is the user question that may provide critical additional context for the task:
+{SEPARATOR_LINE}
+{{question}}
+{SEPARATOR_LINE}
+
 Please consolidate the information into a single, concise answer. The consolidated informtation \
 for the object should be in the following format:
 {SEPARATOR_LINE}
@@ -99,7 +110,7 @@ INFORMATION:
 """
 
 
-DC_FORMATTING_WITH_BASE_DATA_PROMPT = f"""
+DC_FORMATTING_NO_BASE_DATA_PROMPT = f"""
 You are an expert in text formatting. Your task is to take a given text and convert it 100 percent accurately \
 in a new format.
 Here is the text you are supposed to format:
@@ -110,12 +121,12 @@ Here is the format you are supposed to use:
 {SEPARATOR_LINE}
 {{format}}
 {SEPARATOR_LINE}
-Please start the generation directly with the formatted text.
+Please start the generation directly with the formatted text. (Note that the output should not be code, but text.)
 """
 
-DC_FORMATTING_NO_BASE_DATA_PROMPT = f"""
+DC_FORMATTING_WITH_BASE_DATA_PROMPT = f"""
 You are an expert in text formatting. Your task is to take a given text and the initial \
-data provided by the user, and convert it 100 percent accurately \
+base data provided by the user, and convert it 100 percent accurately \
 in a new format. The base data may also contain important relationships that are critical \
 for the formatting.
 Here is the initial data provided by the user:
@@ -131,5 +142,5 @@ And here are the format instructions you are supposed to use:
 {SEPARATOR_LINE}
 {{format}}
 {SEPARATOR_LINE}
-Please start the generation directly with the formatted text.
+Please start the generation directly with the formatted text. (Note that the output should not be code, but text.)
 """

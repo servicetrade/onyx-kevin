@@ -33,7 +33,7 @@ def structure_research_by_object(
     write_custom_event(
         "initial_agent_answer",
         AgentAnswerPiece(
-            answer_piece=" Consolidating the information across source types for each object...",
+            answer_piece=" consolidating the information across source types for each object...",
             level=0,
             level_question_num=0,
             answer_type="agent_level_answer",
@@ -59,6 +59,8 @@ def structure_research_by_object(
         object_research_information_results.append(
             {"object": object, "information": "\n".join(information)}
         )
+
+    logger.debug("DivCon Step A3 - Object Research Information Structuring - completed")
 
     return ObjectResearchInformationUpdate(
         object_research_information_results=object_research_information_results,

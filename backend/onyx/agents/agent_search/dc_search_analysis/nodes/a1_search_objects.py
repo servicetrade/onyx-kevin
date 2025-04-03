@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import StreamWriter
 
+from onyx.agents.agent_search.dc_search_analysis.ops import extract_section
 from onyx.agents.agent_search.dc_search_analysis.ops import research
 from onyx.agents.agent_search.dc_search_analysis.states import MainState
 from onyx.agents.agent_search.dc_search_analysis.states import (
@@ -42,28 +43,37 @@ def search_objects(
             0
         ].system_prompt
 
-        if "|Start Data|" and "|End Data|" in instructions:
-            agent_1_base_data = instructions.split("|Start Data|")[1].split(
-                "|End Data|"
-            )[0]
-        else:
-            agent_1_base_data = None
+        agent_1_instructions = extract_section(
+            instructions, "Agent Step 1:", "Agent Step 2:"
+        )
+        if agent_1_instructions is None:
+            raise ValueError("Agent 1 instructions not found")
 
-        agent_1_instructions = instructions.split("Agent Step 1:")[1].split(
-            "Agent Step 2:"
-        )[0]
+        agent_1_base_data = extract_section(instructions, "|Start Data|", "|End Data|")
 
-        agent_1_task = agent_1_instructions.split("Task:")[1].split(
-            "Independent Sources:"
-        )[0]
-        agent_1_independent_sources_str = agent_1_instructions.split(
-            "Independent Sources:"
-        )[1].split("Output Objective:")[0]
+        agent_1_task = extract_section(
+            agent_1_instructions, "Task:", "Independent Research Sources:"
+        )
+        if agent_1_task is None:
+            raise ValueError("Agent 1 task not found")
+
+        agent_1_independent_sources_str = extract_section(
+            agent_1_instructions, "Independent Research Sources:", "Output Objective:"
+        )
+        if agent_1_independent_sources_str is None:
+            raise ValueError("Agent 1 Independent Research Sources not found")
+
         document_sources = [
             DocumentSource(x.strip().lower())
             for x in agent_1_independent_sources_str.split(";")
         ]
-        agent_1_output_objective = agent_1_instructions.split("Output Objective:")[1]
+
+        agent_1_output_objective = extract_section(
+            agent_1_instructions, "Output Objective:"
+        )
+        if agent_1_output_objective is None:
+            raise ValueError("Agent 1 output objective not found")
+
     except Exception as e:
         raise ValueError(
             f"Agent 1 instructions not found or not formatted correctly: {e}"
@@ -162,8 +172,9 @@ def search_objects(
         )
         cleaned_response = cleaned_response.split("OBJECTS:")[1]
         object_list = [x.strip() for x in cleaned_response.split(";")]
-    except Exception:
-        pass
+
+    except Exception as e:
+        raise ValueError(f"Error in search_objects: {e}")
 
     write_custom_event(
         "initial_agent_answer",

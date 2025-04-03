@@ -1,10 +1,13 @@
 from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from typing import cast
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import StreamWriter
 
+from onyx.agents.agent_search.dc_search_analysis.ops import extract_section
 from onyx.agents.agent_search.dc_search_analysis.ops import research
 from onyx.agents.agent_search.dc_search_analysis.states import ObjectSourceInput
 from onyx.agents.agent_search.dc_search_analysis.states import (
@@ -31,7 +34,7 @@ def research_object_source(
     graph_config = cast(GraphConfig, config["metadata"]["config"])
     graph_config.inputs.search_request.query
     search_tool = graph_config.tooling.search_tool
-
+    question = graph_config.inputs.search_request.query
     object, document_source = state.object_source_combination
 
     if search_tool is None or graph_config.inputs.search_request.persona is None:
@@ -42,13 +45,28 @@ def research_object_source(
             0
         ].system_prompt
 
-        agent_2_instructions = instructions.split("Agent Step 2:")[1].split(
-            "Agent Step 3:"
-        )[0]
-        agent_2_task = agent_2_instructions.split("Task:")[1].split(
-            "Independent Sources:"
-        )[0]
-        agent_2_output_objective = agent_2_instructions.split("Output Objective:")[1]
+        agent_2_instructions = extract_section(
+            instructions, "Agent Step 2:", "Agent Step 3:"
+        )
+        if agent_2_instructions is None:
+            raise ValueError("Agent 2 instructions not found")
+
+        agent_2_task = extract_section(
+            agent_2_instructions, "Task:", "Independent Research Sources:"
+        )
+        if agent_2_task is None:
+            raise ValueError("Agent 2 task not found")
+
+        agent_2_time_cutoff = extract_section(
+            agent_2_instructions, "Time Cutoff:", "Output Objective:"
+        )
+
+        agent_2_output_objective = extract_section(
+            agent_2_instructions, "Output Objective:"
+        )
+        if agent_2_output_objective is None:
+            raise ValueError("Agent 2 output objective not found")
+
     except Exception:
         raise ValueError(
             "Agent 1 instructions not found or not formatted correctly: {e}"
@@ -58,10 +76,37 @@ def research_object_source(
 
     # Retrieve chunks for objects
 
-    if document_source:
-        retrieved_docs = research(object, search_tool, [document_source])
+    if agent_2_time_cutoff is not None:
+        if agent_2_time_cutoff.strip().endswith("d"):
+            try:
+                days = int(agent_2_time_cutoff.strip()[:-1])
+                agent_2_source_start_time = datetime.now(timezone.utc) - timedelta(
+                    days=days
+                )
+            except ValueError:
+                raise ValueError(
+                    f"Invalid time cutoff format: {agent_2_time_cutoff}. Expected format: '<number>d'"
+                )
+        else:
+            raise ValueError(
+                f"Invalid time cutoff format: {agent_2_time_cutoff}. Expected format: '<number>d'"
+            )
     else:
-        retrieved_docs = research(object, search_tool)
+        agent_2_source_start_time = None
+
+    if document_source:
+        retrieved_docs = research(
+            question=object,
+            search_tool=search_tool,
+            document_sources=[document_source],
+            time_cutoff=agent_2_source_start_time,
+        )
+    else:
+        retrieved_docs = research(
+            question=object,
+            search_tool=search_tool,
+            time_cutoff=agent_2_source_start_time,
+        )
 
     # Generate document text
 
@@ -76,6 +121,7 @@ def research_object_source(
 
     dc_object_source_research_prompt = (
         DC_OBJECT_SOURCE_RESEARCH_PROMPT.format(
+            question=question,
             task=agent_2_task,
             document_text=document_texts,
             format=agent_2_output_objective,
@@ -92,12 +138,14 @@ def research_object_source(
         )
     ]
     graph_config.tooling.primary_llm
-    fast_llm = graph_config.tooling.fast_llm
+    # fast_llm = graph_config.tooling.fast_llm
+    primary_llm = graph_config.tooling.primary_llm
+    llm = primary_llm
     # Grader
     try:
         llm_response = run_with_timeout(
             30,
-            fast_llm.invoke,
+            llm.invoke,
             prompt=msg,
             timeout_override=30,
             max_tokens=300,
@@ -114,7 +162,9 @@ def research_object_source(
     except Exception as e:
         raise ValueError(f"Error in research_object_source: {e}")
 
+    logger.debug("DivCon Step A2 - Object Source Research - completed for an object")
+
     return ObjectSourceResearchUpdate(
         object_source_research_results=[object_research_results],
-        log_messages=[f"Agent Step 2 done - {object} - {document_source.value}"],
+        log_messages=["Agent Step 2 done for one object"],
     )
