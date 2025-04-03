@@ -46,10 +46,16 @@ def extract_section(
     text: str, start_marker: str, end_marker: str | None = None
 ) -> str | None:
     """Extract text between markers, returning None if markers not found"""
-    try:
-        parts = text.split(start_marker)[1]
-        if end_marker:
-            return parts.split(end_marker)[0]
-        return parts
-    except IndexError:
+    parts = text.split(start_marker)
+
+    if len(parts) == 1:
         return None
+
+    after_start = parts[1].strip()
+
+    if not end_marker:
+        return after_start
+
+    extract = after_start.split(end_marker)[0]
+
+    return extract.strip()

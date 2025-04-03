@@ -9,6 +9,9 @@ from onyx.agents.agent_search.dc_search_analysis.ops import extract_section
 from onyx.agents.agent_search.dc_search_analysis.states import MainState
 from onyx.agents.agent_search.dc_search_analysis.states import ResearchUpdate
 from onyx.agents.agent_search.models import GraphConfig
+from onyx.agents.agent_search.shared_graph_utils.agent_prompt_ops import (
+    trim_prompt_piece,
+)
 from onyx.agents.agent_search.shared_graph_utils.utils import write_custom_event
 from onyx.chat.models import AgentAnswerPiece
 from onyx.prompts.agents.dc_prompts import DC_FORMATTING_NO_BASE_DATA_PROMPT
@@ -44,7 +47,7 @@ def consolidate_research(
     )
 
     if search_tool is None or graph_config.inputs.search_request.persona is None:
-        raise ValueError("search tool and persona must be provided for agentic search")
+        raise ValueError("Search tool and persona must be provided for DivCon search")
 
     # Populate prompt
     instructions = graph_config.inputs.search_request.persona.prompts[0].system_prompt
@@ -104,13 +107,16 @@ def consolidate_research(
 
     msg = [
         HumanMessage(
-            content=dc_formatting_prompt,
+            content=trim_prompt_piece(
+                config=graph_config.tooling.primary_llm.config,
+                prompt_piece=dc_formatting_prompt,
+                reserved_str="",
+            ),
         )
     ]
 
     dispatch_timings: list[float] = []
 
-    # fast_model = graph_config.tooling.fast_llm
     primary_model = graph_config.tooling.primary_llm
 
     def stream_initial_answer() -> list[str]:

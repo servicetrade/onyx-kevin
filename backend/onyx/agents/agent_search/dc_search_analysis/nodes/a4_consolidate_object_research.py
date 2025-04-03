@@ -9,6 +9,9 @@ from onyx.agents.agent_search.dc_search_analysis.ops import extract_section
 from onyx.agents.agent_search.dc_search_analysis.states import ObjectInformationInput
 from onyx.agents.agent_search.dc_search_analysis.states import ObjectResearchUpdate
 from onyx.agents.agent_search.models import GraphConfig
+from onyx.agents.agent_search.shared_graph_utils.agent_prompt_ops import (
+    trim_prompt_piece,
+)
 from onyx.prompts.agents.dc_prompts import DC_OBJECT_CONSOLIDATION_PROMPT
 from onyx.utils.logger import setup_logger
 from onyx.utils.threadpool_concurrency import run_with_timeout
@@ -32,7 +35,7 @@ def consolidate_object_research(
     question = graph_config.inputs.search_request.query
 
     if search_tool is None or graph_config.inputs.search_request.persona is None:
-        raise ValueError("search tool and persona must be provided for agentic search")
+        raise ValueError("Search tool and persona must be provided for DivCon search")
 
     instructions = graph_config.inputs.search_request.persona.prompts[0].system_prompt
 
@@ -65,7 +68,11 @@ def consolidate_object_research(
 
     msg = [
         HumanMessage(
-            content=dc_object_consolidation_prompt,
+            content=trim_prompt_piece(
+                config=graph_config.tooling.primary_llm.config,
+                prompt_piece=dc_object_consolidation_prompt,
+                reserved_str="",
+            ),
         )
     ]
     graph_config.tooling.primary_llm

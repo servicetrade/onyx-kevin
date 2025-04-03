@@ -4,6 +4,7 @@ SEPARATOR_LINE_LONG = "---------------"
 NO_EXTRACTION = "No extraction of knowledge graph objects was feasable."
 YES = "yes"
 NO = "no"
+DC_OBJECT_SEPARATOR = ";"
 
 
 DC_OBJECT_NO_BASE_DATA_EXTRACTION_PROMPT = f"""
@@ -16,7 +17,7 @@ Here are the documents you are supposed to search through:
 --
 {{document_text}}
 {SEPARATOR_LINE}
-Here is the task you are asked to find the objects of type for, which should
+Here are the task instructions you should use to help you find the desired objects:
 {SEPARATOR_LINE}
 {{task}}
 {SEPARATOR_LINE}
@@ -31,7 +32,7 @@ separated by ';'>
 
 
 DC_OBJECT_WITH_BASE_DATA_EXTRACTION_PROMPT = f"""
-You are an expert in finding relevant objects/objext specifications of the same type in a list of documents. \
+You are an expert in finding relevant objects/object specifications of the same type in a list of documents. \
 In this case you are interested \
 in generating: {{objects_of_interest}}.
 You should look at the provided data - in no particular order! - and extract each object you find in the documents.
@@ -40,7 +41,7 @@ Here are the data provided by the user:
 --
 {{base_data}}
 {SEPARATOR_LINE}
-Here is the task you are asked to find the objects of type for, which should
+Here are the task instructions you should use to help you find the desired objects:
 {SEPARATOR_LINE}
 {{task}}
 {SEPARATOR_LINE}
@@ -55,8 +56,8 @@ separated by ';'>
 
 
 DC_OBJECT_SOURCE_RESEARCH_PROMPT = f"""
-You are an expert in extracting relevant structured information for in a list of documents that should relate to one \
-object.
+You are an expert in extracting relevant structured information from a list of documents that should relate to one \
+object. (Try to make sure that you know it relates to that one object!).
 You should look at the documents - in no particular order! - and extract the information asked for this task:
 {SEPARATOR_LINE}
 {{task}}

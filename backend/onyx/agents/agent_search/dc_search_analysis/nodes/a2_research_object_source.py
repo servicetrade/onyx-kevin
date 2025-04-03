@@ -14,6 +14,9 @@ from onyx.agents.agent_search.dc_search_analysis.states import (
     ObjectSourceResearchUpdate,
 )
 from onyx.agents.agent_search.models import GraphConfig
+from onyx.agents.agent_search.shared_graph_utils.agent_prompt_ops import (
+    trim_prompt_piece,
+)
 from onyx.prompts.agents.dc_prompts import DC_OBJECT_SOURCE_RESEARCH_PROMPT
 from onyx.utils.logger import setup_logger
 from onyx.utils.threadpool_concurrency import run_with_timeout
@@ -38,7 +41,7 @@ def research_object_source(
     object, document_source = state.object_source_combination
 
     if search_tool is None or graph_config.inputs.search_request.persona is None:
-        raise ValueError("search tool and persona must be provided for agentic search")
+        raise ValueError("Search tool and persona must be provided for DivCon search")
 
     try:
         instructions = graph_config.inputs.search_request.persona.prompts[
@@ -94,19 +97,14 @@ def research_object_source(
     else:
         agent_2_source_start_time = None
 
-    if document_source:
-        retrieved_docs = research(
-            question=object,
-            search_tool=search_tool,
-            document_sources=[document_source],
-            time_cutoff=agent_2_source_start_time,
-        )
-    else:
-        retrieved_docs = research(
-            question=object,
-            search_tool=search_tool,
-            time_cutoff=agent_2_source_start_time,
-        )
+    document_sources = [document_source] if document_source else None
+
+    retrieved_docs = research(
+        question=object,
+        search_tool=search_tool,
+        document_sources=document_sources,
+        time_cutoff=agent_2_source_start_time,
+    )
 
     # Generate document text
 
@@ -134,10 +132,13 @@ def research_object_source(
 
     msg = [
         HumanMessage(
-            content=dc_object_source_research_prompt,
+            content=trim_prompt_piece(
+                config=graph_config.tooling.primary_llm.config,
+                prompt_piece=dc_object_source_research_prompt,
+                reserved_str="",
+            ),
         )
     ]
-    graph_config.tooling.primary_llm
     # fast_llm = graph_config.tooling.fast_llm
     primary_llm = graph_config.tooling.primary_llm
     llm = primary_llm

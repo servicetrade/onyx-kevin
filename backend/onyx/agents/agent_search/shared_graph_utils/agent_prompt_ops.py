@@ -182,7 +182,7 @@ def binary_string_test_after_answer_separator(
     return binary_string_test(relevant_text, positive_value)
 
 
-def build_dc_seatch_prompt(
+def build_dc_search_prompt(
     question: str,
     original_question: str,
     docs: list[InferenceSection],

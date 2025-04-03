@@ -12,10 +12,14 @@ from onyx.agents.agent_search.dc_search_analysis.states import (
     SearchSourcesObjectsUpdate,
 )
 from onyx.agents.agent_search.models import GraphConfig
+from onyx.agents.agent_search.shared_graph_utils.agent_prompt_ops import (
+    trim_prompt_piece,
+)
 from onyx.agents.agent_search.shared_graph_utils.utils import write_custom_event
 from onyx.chat.models import AgentAnswerPiece
 from onyx.configs.constants import DocumentSource
 from onyx.prompts.agents.dc_prompts import DC_OBJECT_NO_BASE_DATA_EXTRACTION_PROMPT
+from onyx.prompts.agents.dc_prompts import DC_OBJECT_SEPARATOR
 from onyx.prompts.agents.dc_prompts import DC_OBJECT_WITH_BASE_DATA_EXTRACTION_PROMPT
 from onyx.utils.logger import setup_logger
 from onyx.utils.threadpool_concurrency import run_with_timeout
@@ -36,7 +40,7 @@ def search_objects(
     search_tool = graph_config.tooling.search_tool
 
     if search_tool is None or graph_config.inputs.search_request.persona is None:
-        raise ValueError("search tool and persona must be provided for agentic search")
+        raise ValueError("Search tool and persona must be provided for DivCon search")
 
     try:
         instructions = graph_config.inputs.search_request.persona.prompts[
@@ -65,7 +69,7 @@ def search_objects(
 
         document_sources = [
             DocumentSource(x.strip().lower())
-            for x in agent_1_independent_sources_str.split(";")
+            for x in agent_1_independent_sources_str.split(DC_OBJECT_SEPARATOR)
         ]
 
         agent_1_output_objective = extract_section(
@@ -85,47 +89,6 @@ def search_objects(
         # Retrieve chunks for objects
 
         retrieved_docs = research(question, search_tool)[:10]
-        # aaa = (x for x in retrieved_docs.top_sections[:10])
-        # retrieved_inference_sections = [inference_section_from_llm_doc(llm_doc)
-        #                                for llm_doc in retrieved_docs]
-
-        # yield ToolResponse(id=FINAL_CONTEXT_DOCUMENTS_ID, response=retrieved_docs)
-
-        # aaa = yield_search_responses(
-        #     query=question,
-        #     get_retrieved_sections=lambda: retrieved_inference_sections,
-        #     get_final_context_sections=lambda: retrieved_inference_sections[:10],
-        #     search_query_info=SearchQueryInfo(
-        #         predicted_search=SearchType.SEMANTIC,
-        #         final_filters=IndexFilters(access_control_list=None),
-        #         recency_bias_multiplier=1.0,
-        #     ),
-        #     get_section_relevance=lambda: None,
-        #     search_tool=search_tool,
-        # )
-
-        # for aa in aaa:
-
-        #     write_custom_event(
-        #             "tool_response",
-        #             ToolResponse(
-        #                 id=SEARCH_RESPONSE_SUMMARY_ID,
-        #                 response=aa,
-        #             ),
-        #             writer,
-        #         )
-
-        # write_custom_event(
-        #     "initial_agent_answer",
-        #     AgentAnswerPiece(
-        #         answer_piece="Identifying the [[7]] appropriate objects...",
-        #         level=0,
-        #         level_question_num=0,
-        #         answer_type="agent_level_answer",
-        #     ),
-        #     writer,
-        # )
-        # # Generate document text
 
         document_texts_list = []
         for doc_num, doc in enumerate(retrieved_docs):
@@ -150,7 +113,11 @@ def search_objects(
 
     msg = [
         HumanMessage(
-            content=dc_object_extraction_prompt,
+            content=trim_prompt_piece(
+                config=graph_config.tooling.primary_llm.config,
+                prompt_piece=dc_object_extraction_prompt,
+                reserved_str="",
+            ),
         )
     ]
     primary_llm = graph_config.tooling.primary_llm

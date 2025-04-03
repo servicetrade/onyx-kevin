@@ -352,7 +352,7 @@ class SearchTool(Tool[SearchToolOverrideKwargs]):
 
             # Handle time cutoff
             if time_cutoff:
-                # Overwrite time-cutoff should superceed existing time-cutoff, even if defined
+                # Overwrite time-cutoff should supercede existing time-cutoff, even if defined
                 retrieval_options.filters.time_cutoff = time_cutoff
 
         search_pipeline = SearchPipeline(
