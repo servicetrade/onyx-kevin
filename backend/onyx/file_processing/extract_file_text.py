@@ -585,7 +585,7 @@ def convert_docx_to_txt(
     file_store.save_file(
         file_name=text_file_name,
         content=BytesIO(text_content.encode("utf-8")),
-        display_name=os.path.basename(file_path),
+        display_name=file.filename,
         file_origin=FileOrigin.CONNECTOR,
         file_type="text/plain",
     )
