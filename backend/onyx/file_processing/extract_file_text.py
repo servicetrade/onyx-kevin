@@ -581,11 +581,14 @@ def convert_docx_to_txt(
     all_paras = [p.text for p in doc.paragraphs]
     text_content = "\n".join(all_paras)
 
-    txt_file_path = docx_to_txt_filename(file_path)
+    # Generate a txt filename (use the same base name but with .txt extension)
+    file_name_base = os.path.splitext(file.filename or "document")[0]
+    txt_filename = f"{file_name_base}.txt"
+
     file_store.save_file(
-        file_name=txt_file_path,
+        file_name=file_path,
         content=BytesIO(text_content.encode("utf-8")),
-        display_name=file.filename,
+        display_name=txt_filename,
         file_origin=FileOrigin.CONNECTOR,
         file_type="text/plain",
     )
