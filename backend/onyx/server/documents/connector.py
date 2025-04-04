@@ -5,6 +5,7 @@ import zipfile
 from io import BytesIO
 from typing import cast
 
+from docx import Document as DocxDocument
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -99,7 +100,6 @@ from onyx.db.models import User
 from onyx.db.models import UserGroup__ConnectorCredentialPair
 from onyx.db.search_settings import get_current_search_settings
 from onyx.db.search_settings import get_secondary_search_settings
-from onyx.file_processing.extract_file_text import convert_docx_to_txt
 from onyx.file_store.file_store import get_default_file_store
 from onyx.key_value_store.interface import KvKeyNotFoundError
 from onyx.redis.redis_connector import RedisConnector
@@ -127,6 +127,7 @@ from onyx.utils.logger import setup_logger
 from onyx.utils.telemetry import create_milestone_and_report
 from onyx.utils.threadpool_concurrency import run_functions_tuples_in_parallel
 from onyx.utils.variable_functionality import fetch_ee_implementation_or_noop
+
 
 logger = setup_logger()
 
@@ -430,6 +431,37 @@ def upload_files(files: list[UploadFile], db_session: Session) -> FileUploadResp
                         )
                 continue
 
+            # Special handling for docx files - only store the plaintext version
+            if file.content_type and file.content_type.startswith(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ):
+                # Create a plain text version
+                file.file.seek(0)
+                docx_content = file.file.read()
+                doc = DocxDocument(BytesIO(docx_content))
+
+                # Extract text from the document
+                all_paras = [p.text for p in doc.paragraphs]
+                text_content = "\n".join(all_paras)
+
+                # Generate a txt filename (use the same base name but with .txt extension)
+                file_name_base = os.path.splitext(file.filename)[0]
+                txt_filename = f"{file_name_base}.txt"
+
+                # Save the file with txt extension
+                file_path = os.path.join(str(uuid.uuid4()), txt_filename)
+                deduped_file_paths.append(file_path)
+
+                file_store.save_file(
+                    file_name=file_path,
+                    content=BytesIO(text_content.encode("utf-8")),
+                    display_name=txt_filename,
+                    file_origin=FileOrigin.CONNECTOR,
+                    file_type="text/plain",
+                )
+                continue
+
+            # Default handling for all other file types
             file_path = os.path.join(str(uuid.uuid4()), cast(str, file.filename))
             deduped_file_paths.append(file_path)
             file_store.save_file(
@@ -439,11 +471,6 @@ def upload_files(files: list[UploadFile], db_session: Session) -> FileUploadResp
                 file_origin=FileOrigin.CONNECTOR,
                 file_type=file.content_type or "text/plain",
             )
-
-            if file.content_type and file.content_type.startswith(
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            ):
-                convert_docx_to_txt(file, file_store, file_path)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
