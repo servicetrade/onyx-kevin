@@ -445,7 +445,7 @@ def upload_files(files: list[UploadFile], db_session: Session) -> FileUploadResp
                 text_content = "\n".join(all_paras)
 
                 # Generate a txt filename (use the same base name but with .txt extension)
-                file_name_base = os.path.splitext(file.filename)[0]
+                file_name_base = os.path.splitext(file.filename or "document")[0]
                 txt_filename = f"{file_name_base}.txt"
 
                 # Save the file with txt extension
