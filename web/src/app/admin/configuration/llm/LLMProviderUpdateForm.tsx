@@ -234,7 +234,7 @@ export function LLMProviderUpdateForm({
     >
       {(formikProps) => (
         <Form className="gap-y-4 items-stretch mt-6">
-          {firstTimeConfiguration && (
+          {!firstTimeConfiguration && (
             <TextFormField
               name="name"
               label="Display Name"
