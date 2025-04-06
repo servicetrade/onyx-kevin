@@ -98,18 +98,17 @@ VERTEXAI_MODEL_NAMES = [
     # 2.5 pro models
     "gemini-2.5-pro-exp-03-25",
 
-    # "gemini-2.0-flash-exp-image-generation",
-    # "gemini-2.0-flash-thinking-exp-01-21",
-    # "gemini-2.0-flash-lite-preview-02-05",
-
     # 2.0 flash-lite models
     VERTEXAI_DEFAULT_FAST_MODEL,
     "gemini-2.0-flash-lite-001",
+    # "gemini-2.0-flash-lite-preview-02-05",
 
     # 2.0 flash models
     VERTEXAI_DEFAULT_MODEL,
     "gemini-2.0-flash-001",
     "gemini-2.0-flash-exp",
+    # "gemini-2.0-flash-exp-image-generation",
+    # "gemini-2.0-flash-thinking-exp-01-21",
 
     # 1.5 pro models
     "gemini-1.5-pro-latest",
