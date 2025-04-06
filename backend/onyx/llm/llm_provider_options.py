@@ -9,7 +9,7 @@ class CustomConfigKeyType(Enum):
     # i.e., textual API keys (e.g., "abcd1234")
     TEXT_INPUT = "text_input"
 
-    # used for configuration values that require a file to be select/drag-and-dropped
+    # used for configuration values that require a file to be selected/drag-and-dropped
     # i.e., file based credentials (e.g., "/path/to/credentials/file.json")
     FILE_INPUT = "file_input"
 
