@@ -128,6 +128,8 @@ _PROVIDER_TO_MODELS_MAP = {
 }
 
 
+CREDENTIALS_FILE_CUSTOM_CONFIG_KEY = "CREDENTIALS_FILE"
+
 def fetch_available_well_known_llms() -> list[WellKnownLLMProviderDescriptor]:
     return [
         WellKnownLLMProviderDescriptor(
@@ -201,7 +203,7 @@ def fetch_available_well_known_llms() -> list[WellKnownLLMProviderDescriptor]:
             llm_names=fetch_models_for_provider(VERTEXAI_PROVIDER_NAME),
             custom_config_keys=[
                 CustomConfigKey(
-                    name="CREDENTIALS_FILE",
+                    name=CREDENTIALS_FILE_CUSTOM_CONFIG_KEY,
                     display_name="Credentials File",
                     description="This should be a JSON file containing some private credentials.",
                     is_required=True,

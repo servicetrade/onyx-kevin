@@ -25,6 +25,7 @@ from langchain_core.messages.tool import ToolCallChunk
 from langchain_core.messages.tool import ToolMessage
 from langchain_core.prompt_values import PromptValue
 
+from onyx.llm.llm_provider_options import CREDENTIALS_FILE_CUSTOM_CONFIG_KEY
 from onyx.configs.app_configs import LOG_DANSWER_MODEL_INTERACTIONS
 from onyx.configs.app_configs import MOCK_LLM_RESPONSE
 from onyx.configs.chat_configs import QA_TIMEOUT
@@ -477,7 +478,7 @@ class DefaultMultiLLM(LLM):
     @property
     def config(self) -> LLMConfig:
         credentials_file: str | None = (
-            self._custom_config.get("CREDENTIALS_FILE", None)
+            self._custom_config.get(CREDENTIALS_FILE_CUSTOM_CONFIG_KEY, None)
             if self._custom_config
             else None
         )
