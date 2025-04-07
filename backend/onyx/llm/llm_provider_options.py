@@ -196,7 +196,7 @@ def fetch_available_well_known_llms() -> list[WellKnownLLMProviderDescriptor]:
         ),
         WellKnownLLMProviderDescriptor(
             name=VERTEXAI_PROVIDER_NAME,
-            display_name="Gemini",
+            display_name="GCP Vertex AI",
             api_key_required=False,
             api_base_required=False,
             api_version_required=False,
