@@ -914,6 +914,7 @@ def stream_chat_message_objects(
                     retrieval_options.filters.user_folder_ids = user_folder_ids
 
                     # Create override kwargs for the search tool
+
                     override_kwargs = SearchToolOverrideKwargs(
                         force_no_rerank=search_for_ordering_only,  # Skip reranking for ordering-only
                         alternate_db_session=None,
@@ -1113,9 +1114,6 @@ def stream_chat_message_objects(
                         logger.info(
                             f"ORDERING: Processing search results for ordering {len(user_files)} user files"
                         )
-                        import time
-
-                        ordering_start = time.time()
 
                         # Extract document order from search results
                         doc_order = []
@@ -1150,8 +1148,6 @@ def stream_chat_message_objects(
                             for f_id in doc_order
                             if f_id in file_id_to_user_file
                         ]
-
-                        time.time() - ordering_start
 
                         yield UserKnowledgeFilePacket(
                             user_files=[
