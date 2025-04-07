@@ -367,7 +367,7 @@ export function FileUploadFormField({
 }) {
   // We create a *temporary* field inside of `Formik` to throw the `File` object into.
   // The actual *contents* of the file will be thrown into the field called `name`.
-  const fileName = "temporary.credentialsFile";
+  const fileName = `temporary.filename-${name}`;
   const [fileField] = useField<File>(fileName);
   const [, , contentsHelper] = useField<string>(name);
 
