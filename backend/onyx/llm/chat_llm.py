@@ -25,7 +25,6 @@ from langchain_core.messages.tool import ToolCallChunk
 from langchain_core.messages.tool import ToolMessage
 from langchain_core.prompt_values import PromptValue
 
-from onyx.llm.llm_provider_options import CREDENTIALS_FILE_CUSTOM_CONFIG_KEY
 from onyx.configs.app_configs import LOG_DANSWER_MODEL_INTERACTIONS
 from onyx.configs.app_configs import MOCK_LLM_RESPONSE
 from onyx.configs.chat_configs import QA_TIMEOUT
@@ -37,6 +36,7 @@ from onyx.configs.model_configs import LITELLM_EXTRA_BODY
 from onyx.llm.interfaces import LLM
 from onyx.llm.interfaces import LLMConfig
 from onyx.llm.interfaces import ToolChoiceOptions
+from onyx.llm.llm_provider_options import CREDENTIALS_FILE_CUSTOM_CONFIG_KEY
 from onyx.llm.utils import model_is_reasoning_model
 from onyx.server.utils import mask_string
 from onyx.utils.logger import setup_logger
