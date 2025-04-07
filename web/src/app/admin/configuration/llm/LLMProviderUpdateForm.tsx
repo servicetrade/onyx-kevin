@@ -302,108 +302,112 @@ export function LLMProviderUpdateForm({
             }
           })}
 
-          <Separator />
-
-          {llmProviderDescriptor.llm_names.length > 0 ? (
-            <SelectorFormField
-              name="default_model_name"
-              subtext="The model to use by default for this provider unless otherwise specified."
-              label="Default Model"
-              options={llmProviderDescriptor.llm_names.map((name) => ({
-                // don't clean up names here to give admins descriptive names / handle duplicates
-                // like us.anthropic.claude-3-7-sonnet-20250219-v1:0 and anthropic.claude-3-7-sonnet-20250219-v1:0
-                name: name,
-                value: name,
-              }))}
-              maxHeight="max-h-56"
-            />
-          ) : (
-            <TextFormField
-              name="default_model_name"
-              subtext="The model to use by default for this provider unless otherwise specified."
-              label="Default Model"
-              placeholder="E.g. gpt-4"
-            />
-          )}
-
-          {llmProviderDescriptor.deployment_name_required && (
-            <TextFormField
-              name="deployment_name"
-              label="Deployment Name"
-              placeholder="Deployment Name"
-            />
-          )}
-
-          {!llmProviderDescriptor.single_model_supported &&
-            (llmProviderDescriptor.llm_names.length > 0 ? (
-              <SelectorFormField
-                name="fast_default_model_name"
-                subtext={`The model to use for lighter flows like \`LLM Chunk Filter\`
-            for this provider. If \`Default\` is specified, will use
-            the Default Model configured above.`}
-                label="[Optional] Fast Model"
-                options={llmProviderDescriptor.llm_names.map((name) => ({
-                  // don't clean up names here to give admins descriptive names / handle duplicates
-                  // like us.anthropic.claude-3-7-sonnet-20250219-v1:0 and anthropic.claude-3-7-sonnet-20250219-v1:0
-                  name: name,
-                  value: name,
-                }))}
-                includeDefault
-                maxHeight="max-h-56"
-              />
-            ) : (
-              <TextFormField
-                name="fast_default_model_name"
-                subtext={`The model to use for lighter flows like \`LLM Chunk Filter\`
-            for this provider. If \`Default\` is specified, will use
-            the Default Model configured above.`}
-                label="[Optional] Fast Model"
-                placeholder="E.g. gpt-4"
-              />
-            ))}
-
-          {hasAdvancedOptions && (
+          {hasAdvancedOptions && !firstTimeConfiguration && (
             <>
               <Separator />
-              <AdvancedOptionsToggle
-                showAdvancedOptions={showAdvancedOptions}
-                setShowAdvancedOptions={setShowAdvancedOptions}
-              />
-              {showAdvancedOptions && (
-                <>
-                  {llmProviderDescriptor.llm_names.length > 0 && (
-                    <div className="w-full">
-                      <MultiSelectField
-                        selectedInitially={
-                          formikProps.values.display_model_names
-                        }
-                        name="display_model_names"
-                        label="Display Models"
-                        subtext="Select the models to make available to users. Unselected models will not be available."
-                        options={llmProviderDescriptor.llm_names.map(
-                          (name) => ({
-                            value: name,
-                            // don't clean up names here to give admins descriptive names / handle duplicates
-                            // like us.anthropic.claude-3-7-sonnet-20250219-v1:0 and anthropic.claude-3-7-sonnet-20250219-v1:0
-                            label: name,
-                          })
-                        )}
-                        onChange={(selected) =>
-                          formikProps.setFieldValue(
-                            "display_model_names",
-                            selected
-                          )
-                        }
-                      />
-                    </div>
-                  )}
 
-                  <IsPublicGroupSelector
-                    formikProps={formikProps}
-                    objectName="LLM Provider"
-                    publicToWhom="all users"
-                    enforceGroupSelection={true}
+              {llmProviderDescriptor.llm_names.length > 0 ? (
+                <SelectorFormField
+                  name="default_model_name"
+                  subtext="The model to use by default for this provider unless otherwise specified."
+                  label="Default Model"
+                  options={llmProviderDescriptor.llm_names.map((name) => ({
+                    // don't clean up names here to give admins descriptive names / handle duplicates
+                    // like us.anthropic.claude-3-7-sonnet-20250219-v1:0 and anthropic.claude-3-7-sonnet-20250219-v1:0
+                    name: name,
+                    value: name,
+                  }))}
+                  maxHeight="max-h-56"
+                />
+              ) : (
+                <TextFormField
+                  name="default_model_name"
+                  subtext="The model to use by default for this provider unless otherwise specified."
+                  label="Default Model"
+                  placeholder="E.g. gpt-4"
+                />
+              )}
+
+              {llmProviderDescriptor.deployment_name_required && (
+                <TextFormField
+                  name="deployment_name"
+                  label="Deployment Name"
+                  placeholder="Deployment Name"
+                />
+              )}
+
+              {!llmProviderDescriptor.single_model_supported &&
+                (llmProviderDescriptor.llm_names.length > 0 ? (
+                  <SelectorFormField
+                    name="fast_default_model_name"
+                    subtext={`The model to use for lighter flows like \`LLM Chunk Filter\`
+            for this provider. If \`Default\` is specified, will use
+            the Default Model configured above.`}
+                    label="[Optional] Fast Model"
+                    options={llmProviderDescriptor.llm_names.map((name) => ({
+                      // don't clean up names here to give admins descriptive names / handle duplicates
+                      // like us.anthropic.claude-3-7-sonnet-20250219-v1:0 and anthropic.claude-3-7-sonnet-20250219-v1:0
+                      name: name,
+                      value: name,
+                    }))}
+                    includeDefault
+                    maxHeight="max-h-56"
                   />
+                ) : (
+                  <TextFormField
+                    name="fast_default_model_name"
+                    subtext={`The model to use for lighter flows like \`LLM Chunk Filter\`
+            for this provider. If \`Default\` is specified, will use
+            the Default Model configured above.`}
+                    label="[Optional] Fast Model"
+                    placeholder="E.g. gpt-4"
+                  />
+                ))}
+
+              {hasAdvancedOptions && (
+                <>
+                  <Separator />
+                  <AdvancedOptionsToggle
+                    showAdvancedOptions={showAdvancedOptions}
+                    setShowAdvancedOptions={setShowAdvancedOptions}
+                  />
+                  {showAdvancedOptions && (
+                    <>
+                      {llmProviderDescriptor.llm_names.length > 0 && (
+                        <div className="w-full">
+                          <MultiSelectField
+                            selectedInitially={
+                              formikProps.values.display_model_names
+                            }
+                            name="display_model_names"
+                            label="Display Models"
+                            subtext="Select the models to make available to users. Unselected models will not be available."
+                            options={llmProviderDescriptor.llm_names.map(
+                              (name) => ({
+                                value: name,
+                                // don't clean up names here to give admins descriptive names / handle duplicates
+                                // like us.anthropic.claude-3-7-sonnet-20250219-v1:0 and anthropic.claude-3-7-sonnet-20250219-v1:0
+                                label: name,
+                              })
+                            )}
+                            onChange={(selected) =>
+                              formikProps.setFieldValue(
+                                "display_model_names",
+                                selected
+                              )
+                            }
+                          />
+                        </div>
+                      )}
+
+                      <IsPublicGroupSelector
+                        formikProps={formikProps}
+                        objectName="LLM Provider"
+                        publicToWhom="all users"
+                        enforceGroupSelection={true}
+                      />
+                    </>
+                  )}
                 </>
               )}
             </>
