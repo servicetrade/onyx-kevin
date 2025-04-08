@@ -418,7 +418,6 @@ def handle_new_chat_message(
     """
     tenant_id = get_current_tenant_id()
     logger.debug(f"Received new chat message: {chat_message_req.message}")
-    time.time()
 
     if (
         not chat_message_req.message
