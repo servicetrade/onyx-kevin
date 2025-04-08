@@ -251,8 +251,6 @@ def update_persona(
     user: User | None = Depends(current_user),
     db_session: Session = Depends(get_session),
 ) -> PersonaSnapshot:
-    print(persona_upsert_request)
-    print(persona_upsert_request.__dict__)
     prompt_id = (
         persona_upsert_request.prompt_ids[0]
         if persona_upsert_request.prompt_ids

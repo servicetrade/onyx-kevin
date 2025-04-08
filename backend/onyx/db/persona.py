@@ -508,9 +508,6 @@ def upsert_persona(
         )
         if not user_folders and user_folder_ids:
             raise ValueError("user_folders not found")
-    print("document sets")
-    print(document_sets)
-    print(document_set_ids)
 
     # Fetch and attach prompts by IDs
     prompts = None
@@ -571,8 +568,6 @@ def upsert_persona(
         # Do not delete any associations manually added unless
         # a new updated list is provided
         if document_sets is not None:
-            print("document sets updating")
-            print(document_sets)
             existing_persona.document_sets.clear()
             existing_persona.document_sets = document_sets or []
 
