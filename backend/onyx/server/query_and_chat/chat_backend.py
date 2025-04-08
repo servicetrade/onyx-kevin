@@ -418,7 +418,7 @@ def handle_new_chat_message(
     """
     tenant_id = get_current_tenant_id()
     logger.debug(f"Received new chat message: {chat_message_req.message}")
-    start_time = time.time()
+    time.time()
 
     if (
         not chat_message_req.message
@@ -449,11 +449,7 @@ def handle_new_chat_message(
                 ),
                 is_connected=is_connected_func,
             ):
-                if isinstance(packet, dict) and "top_documents" in packet:
-                    document_retrieval_latency = time.time() - start_time
-                    logger.debug(f"First doc time: {document_retrieval_latency}")
-
-                yield json.dumps(packet) if isinstance(packet, dict) else packet
+                yield packet
 
         except Exception as e:
             logger.exception("Error in chat message streaming")

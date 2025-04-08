@@ -1,3 +1,4 @@
+import time
 import traceback
 from collections import defaultdict
 from collections.abc import Callable
@@ -1436,6 +1437,7 @@ def stream_chat_message(
     custom_tool_additional_headers: dict[str, str] | None = None,
     is_connected: Callable[[], bool] | None = None,
 ) -> Iterator[str]:
+    start_time = time.time()
     with get_session_context_manager() as db_session:
         objects = stream_chat_message_objects(
             new_msg_req=new_msg_req,
@@ -1446,6 +1448,11 @@ def stream_chat_message(
             is_connected=is_connected,
         )
         for obj in objects:
+            # Check if this is a QADocsResponse with document results
+            if isinstance(obj, QADocsResponse):
+                document_retrieval_latency = time.time() - start_time
+                logger.debug(f"First doc time: {document_retrieval_latency}")
+
             yield get_json_line(obj.model_dump())
 
 
