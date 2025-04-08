@@ -281,7 +281,11 @@ export function AssistantEditor({
     selectedGroups: existingPersona?.groups ?? [],
     user_file_ids: existingPersona?.user_file_ids ?? [],
     user_folder_ids: existingPersona?.user_folder_ids ?? [],
-    knowledge_source: "user_files",
+    knowledge_source:
+      (existingPersona?.user_file_ids?.length ?? 0) > 0 ||
+      (existingPersona?.user_folder_ids?.length ?? 0) > 0
+        ? "user_files"
+        : "team_knowledge",
     is_default_persona: existingPersona?.is_default_persona ?? false,
   };
 
@@ -375,6 +379,7 @@ export function AssistantEditor({
       }
     }
   };
+
   const canShowKnowledgeSource =
     ccPairs.length > 0 &&
     searchTool &&
@@ -579,6 +584,7 @@ export function AssistantEditor({
             user_folder_ids: selectedFolders.map((folder) => folder.id),
           };
 
+          alert(JSON.stringify(submissionData));
           let personaResponse;
 
           if (isUpdate) {
@@ -891,6 +897,13 @@ export function AssistantEditor({
                       </div>
                     </>
                   )}
+                  <button
+                    onClick={() => {
+                      alert(JSON.stringify(existingPersona));
+                    }}
+                  >
+                    click em
+                  </button>
                   {searchTool && values.enabled_tools_map[searchTool.id] && (
                     <div>
                       {canShowKnowledgeSource && (
