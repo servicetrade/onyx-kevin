@@ -159,14 +159,14 @@ class AnswerPromptBuilder:
         """
         Get the message history as a list of PreviousMessage objects.
         """
-        ret = []
+        message_history = []
         if self.system_message_and_token_cnt:
             tmp = PreviousMessage.from_langchain_msg(*self.system_message_and_token_cnt)
-            ret.append(tmp)
+            message_history.append(tmp)
         for i, msg in enumerate(self.message_history):
             tmp = PreviousMessage.from_langchain_msg(msg, self.history_token_cnts[i])
-            ret.append(tmp)
-        return ret
+            message_history.append(tmp)
+        return message_history
 
     def build(self) -> list[BaseMessage]:
         if not self.user_message_and_token_cnt:
