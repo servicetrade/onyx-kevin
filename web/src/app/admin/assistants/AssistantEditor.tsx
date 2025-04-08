@@ -584,7 +584,6 @@ export function AssistantEditor({
             user_folder_ids: selectedFolders.map((folder) => folder.id),
           };
 
-          alert(JSON.stringify(submissionData));
           let personaResponse;
 
           if (isUpdate) {
@@ -897,13 +896,7 @@ export function AssistantEditor({
                       </div>
                     </>
                   )}
-                  <button
-                    onClick={() => {
-                      alert(JSON.stringify(existingPersona));
-                    }}
-                  >
-                    click em
-                  </button>
+
                   {searchTool && values.enabled_tools_map[searchTool.id] && (
                     <div>
                       {canShowKnowledgeSource && (
