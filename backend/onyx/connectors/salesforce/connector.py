@@ -212,7 +212,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
                     f"csv={csv_path} "
                     f"len={Path(csv_path).stat().st_size}"
                 )
-                new_ids = sf_db.update_sf_db_with_csv(
+                new_ids = sf_db.update_from_csv(
                     object_type=object_type,
                     csv_download_path=csv_path,
                 )

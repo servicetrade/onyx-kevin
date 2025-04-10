@@ -339,7 +339,7 @@ class OnyxSalesforceSQLite:
             count = cursor.fetchone()[0]
             return count > 0
 
-    def update_sf_db_with_csv(
+    def update_from_csv(
         self,
         object_type: str,
         csv_download_path: str,
@@ -408,6 +408,76 @@ class OnyxSalesforceSQLite:
                 _update_user_email_map(self._conn)
 
         return updated_ids
+
+    def get_child_ids(self, parent_id: str) -> set[str]:
+        """Get all child IDs for a given parent ID."""
+        if self._conn is None:
+            raise RuntimeError("Database connection is closed")
+
+        with self._conn:
+            cursor = self._conn.cursor()
+
+            # Force index usage with INDEXED BY
+            cursor.execute(
+                "SELECT child_id FROM relationships INDEXED BY idx_parent_id WHERE parent_id = ?",
+                (parent_id,),
+            )
+            child_ids = {row[0] for row in cursor.fetchall()}
+        return child_ids
+
+    def get_type_from_id(self, object_id: str) -> str | None:
+        """Get the type of an object from its ID."""
+        if self._conn is None:
+            raise RuntimeError("Database connection is closed")
+
+        with self._conn:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                "SELECT object_type FROM salesforce_objects WHERE id = ?", (object_id,)
+            )
+            result = cursor.fetchone()
+            if not result:
+                logger.warning(f"Object ID {object_id} not found")
+                return None
+            return result[0]
+
+    def get_record(
+        self, object_id: str, object_type: str | None = None
+    ) -> SalesforceObject | None:
+        """Retrieve the record and return it as a SalesforceObject."""
+        if self._conn is None:
+            raise RuntimeError("Database connection is closed")
+
+        if object_type is None:
+            object_type = self.get_type_from_id(object_id)
+            if not object_type:
+                return None
+
+        with self._conn:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                "SELECT data FROM salesforce_objects WHERE id = ?", (object_id,)
+            )
+            result = cursor.fetchone()
+            if not result:
+                logger.warning(f"Object ID {object_id} not found")
+                return None
+
+            data = json.loads(result[0])
+            return SalesforceObject(id=object_id, type=object_type, data=data)
+
+    def find_ids_by_type(self, object_type: str) -> list[str]:
+        """Find all object IDs for rows of the specified type."""
+        if self._conn is None:
+            raise RuntimeError("Database connection is closed")
+
+        with self._conn:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                "SELECT id FROM salesforce_objects WHERE object_type = ?",
+                (object_type,),
+            )
+            return [row[0] for row in cursor.fetchall()]
 
 
 @contextmanager
@@ -517,62 +587,3 @@ def _update_user_email_map(conn: sqlite3.Connection) -> None:
         AND json_extract(data, '$.Email') IS NOT NULL
         """
     )
-
-
-def get_child_ids(directory: str, parent_id: str) -> set[str]:
-    """Get all child IDs for a given parent ID."""
-    with get_db_connection(directory) as conn:
-        cursor = conn.cursor()
-
-        # Force index usage with INDEXED BY
-        cursor.execute(
-            "SELECT child_id FROM relationships INDEXED BY idx_parent_id WHERE parent_id = ?",
-            (parent_id,),
-        )
-        child_ids = {row[0] for row in cursor.fetchall()}
-    return child_ids
-
-
-def get_type_from_id(directory: str, object_id: str) -> str | None:
-    """Get the type of an object from its ID."""
-    with get_db_connection(directory) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT object_type FROM salesforce_objects WHERE id = ?", (object_id,)
-        )
-        result = cursor.fetchone()
-        if not result:
-            logger.warning(f"Object ID {object_id} not found")
-            return None
-        return result[0]
-
-
-def get_record(
-    directory: str, object_id: str, object_type: str | None = None
-) -> SalesforceObject | None:
-    """Retrieve the record and return it as a SalesforceObject."""
-    if object_type is None:
-        object_type = get_type_from_id(directory, object_id)
-        if not object_type:
-            return None
-
-    with get_db_connection(directory) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT data FROM salesforce_objects WHERE id = ?", (object_id,))
-        result = cursor.fetchone()
-        if not result:
-            logger.warning(f"Object ID {object_id} not found")
-            return None
-
-        data = json.loads(result[0])
-        return SalesforceObject(id=object_id, type=object_type, data=data)
-
-
-def find_ids_by_type(directory: str, object_type: str) -> list[str]:
-    """Find all object IDs for rows of the specified type."""
-    with get_db_connection(directory) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id FROM salesforce_objects WHERE object_type = ?", (object_type,)
-        )
-        return [row[0] for row in cursor.fetchall()]
