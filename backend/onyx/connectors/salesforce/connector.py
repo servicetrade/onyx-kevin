@@ -237,21 +237,21 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
         updated_ids: set[str] = set()
         docs_processed = 0
 
-        onyx_db = OnyxSalesforceSQLite(os.path.join(temp_dir, "salesforce_db.sqlite"))
-        onyx_db.connect()
+        sf_db = OnyxSalesforceSQLite(os.path.join(temp_dir, "salesforce_db.sqlite"))
+        sf_db.connect()
 
         try:
-            onyx_db.apply_schema()
-            onyx_db.log_stats()
+            sf_db.apply_schema()
+            sf_db.log_stats()
 
             # Step 1 - download
             SalesforceConnector._download_object_csvs(
-                onyx_db, temp_dir, self.parent_object_list, self._sf_client, start, end
+                sf_db, temp_dir, self.parent_object_list, self._sf_client, start, end
             )
             gc.collect()
 
             # Step 2 - load CSV's to sqlite
-            updated_ids = SalesforceConnector._load_csvs_to_db(temp_dir, onyx_db)
+            updated_ids = SalesforceConnector._load_csvs_to_db(temp_dir, sf_db)
             gc.collect()
 
             logger.info(f"Found {len(updated_ids)} total updated records")
@@ -265,7 +265,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
             docs_to_yield_bytes = 0
 
             # Takes 15-20 seconds per batch
-            for parent_type, parent_id_batch in onyx_db.get_affected_parent_ids_by_type(
+            for parent_type, parent_id_batch in sf_db.get_affected_parent_ids_by_type(
                 updated_ids=list(updated_ids),
                 parent_types=self.parent_object_list,
             ):
@@ -278,7 +278,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
                     f"remaining={len(updated_ids) - docs_processed}"
                 )
                 for parent_id in parent_id_batch:
-                    parent_object = onyx_db.get_record(parent_id, parent_type)
+                    parent_object = sf_db.get_record(parent_id, parent_type)
                     if not parent_object:
                         logger.warning(
                             f"Failed to get parent object {parent_id} for {parent_type}"
@@ -286,7 +286,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
                         continue
 
                     doc = convert_sf_object_to_doc(
-                        onyx_db,
+                        sf_db,
                         sf_object=parent_object,
                         sf_instance=self.sf_client.sf_instance,
                     )
@@ -317,7 +317,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
                 f"remaining={len(updated_ids) - docs_processed}"
             )
 
-            onyx_db.close()
+            sf_db.close()
 
     def load_from_state(self) -> GenerateDocumentsOutput:
         if MULTI_TENANT:
