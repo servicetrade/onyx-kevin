@@ -15,12 +15,14 @@ logger = setup_logger()
 
 
 class OnyxSalesforceSQLite:
-    """Notes
+    """Notes on context management using 'with self.conn':
 
-    'with self._conn' will autocommit / rollback on exiting the context manager.
-    self._conn does not close automatically!  .close must be called explicitly.
+    Does autocommit / rollback on exit.
+    Does NOT close on exit! .close must be called explicitly.
     """
 
+    # NOTE(rkuo): this string could probably occur naturally. A more unique value
+    # might be appropriate here.
     NULL_ID_STRING = "N/A"
 
     def __init__(self, filename: str, isolation_level: str | None = None):
@@ -197,7 +199,7 @@ class OnyxSalesforceSQLite:
 
             start = time.monotonic()
             if cursor.fetchone()[0] == 0:
-                _update_user_email_map(self._conn)
+                OnyxSalesforceSQLite._update_user_email_map(self._conn)
             elapsed = time.monotonic() - start
             logger.info(f"init_db - update_user_email_map: elapsed={elapsed:.2f}")
 
@@ -398,12 +400,14 @@ class OnyxSalesforceSQLite:
                     )
 
                     # Update relationships using the same connection
-                    _update_relationship_tables(self._conn, id, parent_ids)
+                    OnyxSalesforceSQLite._update_relationship_tables(
+                        self._conn, id, parent_ids
+                    )
                     updated_ids.append(id)
 
             # If we're updating User objects, update the email map
             if object_type == "User":
-                _update_user_email_map(self._conn)
+                OnyxSalesforceSQLite._update_user_email_map(self._conn)
 
         return updated_ids
 
@@ -477,6 +481,93 @@ class OnyxSalesforceSQLite:
             )
             return [row[0] for row in cursor.fetchall()]
 
+    @staticmethod
+    def _update_relationship_tables(
+        conn: sqlite3.Connection, child_id: str, parent_ids: set[str]
+    ) -> None:
+        """Given a child id and a set of parent id's, updates the
+        relationships of the child to the parents in the db and removes old relationships.
+
+        Args:
+            conn: The database connection to use (must be in a transaction)
+            child_id: The ID of the child record
+            parent_ids: Set of parent IDs to link to
+        """
+
+        try:
+            cursor = conn.cursor()
+
+            # Get existing parent IDs
+            cursor.execute(
+                "SELECT parent_id FROM relationships WHERE child_id = ?", (child_id,)
+            )
+            old_parent_ids = {row[0] for row in cursor.fetchall()}
+
+            # Calculate differences
+            parent_ids_to_remove = old_parent_ids - parent_ids
+            parent_ids_to_add = parent_ids - old_parent_ids
+
+            # Remove old relationships
+            if parent_ids_to_remove:
+                cursor.executemany(
+                    "DELETE FROM relationships WHERE child_id = ? AND parent_id = ?",
+                    [(child_id, parent_id) for parent_id in parent_ids_to_remove],
+                )
+                # Also remove from relationship_types
+                cursor.executemany(
+                    "DELETE FROM relationship_types WHERE child_id = ? AND parent_id = ?",
+                    [(child_id, parent_id) for parent_id in parent_ids_to_remove],
+                )
+
+            # Add new relationships
+            if parent_ids_to_add:
+                # First add to relationships table
+                cursor.executemany(
+                    "INSERT INTO relationships (child_id, parent_id) VALUES (?, ?)",
+                    [(child_id, parent_id) for parent_id in parent_ids_to_add],
+                )
+
+                # Then get the types of the parent objects and add to relationship_types
+                for parent_id in parent_ids_to_add:
+                    cursor.execute(
+                        "SELECT object_type FROM salesforce_objects WHERE id = ?",
+                        (parent_id,),
+                    )
+                    result = cursor.fetchone()
+                    if result:
+                        parent_type = result[0]
+                        cursor.execute(
+                            """
+                            INSERT INTO relationship_types (child_id, parent_id, parent_type)
+                            VALUES (?, ?, ?)
+                            """,
+                            (child_id, parent_id, parent_type),
+                        )
+
+        except Exception:
+            logger.exception(
+                f"Error updating relationship tables: child_id={child_id} parent_ids={parent_ids}"
+            )
+            raise
+
+    @staticmethod
+    def _update_user_email_map(conn: sqlite3.Connection) -> None:
+        """Update the user_email_map table with current User objects.
+        Called internally by update_sf_db_with_csv when User objects are updated.
+        """
+
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO user_email_map (email, user_id)
+                SELECT json_extract(data, '$.Email'), id
+                FROM salesforce_objects
+                WHERE object_type = 'User'
+                AND json_extract(data, '$.Email') IS NOT NULL
+                """
+            )
+
 
 # @contextmanager
 # def get_db_connection(
@@ -501,87 +592,3 @@ class OnyxSalesforceSQLite:
 #         raise
 #     finally:
 #         conn.close()
-
-
-def _update_relationship_tables(
-    conn: sqlite3.Connection, child_id: str, parent_ids: set[str]
-) -> None:
-    """Given a child id and a set of parent id's, updates the
-    relationships of the child to the parents in the db and removes old relationships.
-
-    Args:
-        conn: The database connection to use (must be in a transaction)
-        child_id: The ID of the child record
-        parent_ids: Set of parent IDs to link to
-    """
-    try:
-        cursor = conn.cursor()
-
-        # Get existing parent IDs
-        cursor.execute(
-            "SELECT parent_id FROM relationships WHERE child_id = ?", (child_id,)
-        )
-        old_parent_ids = {row[0] for row in cursor.fetchall()}
-
-        # Calculate differences
-        parent_ids_to_remove = old_parent_ids - parent_ids
-        parent_ids_to_add = parent_ids - old_parent_ids
-
-        # Remove old relationships
-        if parent_ids_to_remove:
-            cursor.executemany(
-                "DELETE FROM relationships WHERE child_id = ? AND parent_id = ?",
-                [(child_id, parent_id) for parent_id in parent_ids_to_remove],
-            )
-            # Also remove from relationship_types
-            cursor.executemany(
-                "DELETE FROM relationship_types WHERE child_id = ? AND parent_id = ?",
-                [(child_id, parent_id) for parent_id in parent_ids_to_remove],
-            )
-
-        # Add new relationships
-        if parent_ids_to_add:
-            # First add to relationships table
-            cursor.executemany(
-                "INSERT INTO relationships (child_id, parent_id) VALUES (?, ?)",
-                [(child_id, parent_id) for parent_id in parent_ids_to_add],
-            )
-
-            # Then get the types of the parent objects and add to relationship_types
-            for parent_id in parent_ids_to_add:
-                cursor.execute(
-                    "SELECT object_type FROM salesforce_objects WHERE id = ?",
-                    (parent_id,),
-                )
-                result = cursor.fetchone()
-                if result:
-                    parent_type = result[0]
-                    cursor.execute(
-                        """
-                        INSERT INTO relationship_types (child_id, parent_id, parent_type)
-                        VALUES (?, ?, ?)
-                        """,
-                        (child_id, parent_id, parent_type),
-                    )
-
-    except Exception:
-        logger.exception(
-            f"Error updating relationship tables: child_id={child_id} parent_ids={parent_ids}"
-        )
-        raise
-
-
-def _update_user_email_map(conn: sqlite3.Connection) -> None:
-    """Update the user_email_map table with current User objects.
-    Called internally by update_sf_db_with_csv when User objects are updated.
-    """
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT OR REPLACE INTO user_email_map (email, user_id)
-        SELECT json_extract(data, '$.Email'), id
-        FROM salesforce_objects
-        WHERE object_type = 'User'
-        AND json_extract(data, '$.Email') IS NOT NULL
-        """
-    )
