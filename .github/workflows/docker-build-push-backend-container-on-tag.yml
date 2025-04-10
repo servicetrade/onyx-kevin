@@ -6,6 +6,7 @@ on:
       - "*"
 
 env:
+  DOCKER_CACHE_DIR: ${{ contains(github.ref_name, 'cloud') && 'cloud' || 'standalone' }}
   REGISTRY_IMAGE: ${{ contains(github.ref_name, 'cloud') && 'onyxdotapp/onyx-backend-cloud' || 'onyxdotapp/onyx-backend' }}
   LATEST_TAG: ${{ contains(github.ref_name, 'latest') }}
 
@@ -34,7 +35,7 @@ jobs:
           sudo apt-get install -y build-essential
 
       - name: Backend Image Docker Build and Push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -45,6 +46,8 @@ jobs:
             ${{ env.LATEST_TAG == 'true' && format('{0}:latest', env.REGISTRY_IMAGE) || '' }}
           build-args: |
             ONYX_VERSION=${{ github.ref_name }}
+          cache-from: type=s3,prefix=cache/${{ github.repository }}/${{ env.DOCKER_CACHE_DIR }}/backend/,region=${{ env.RUNS_ON_AWS_REGION }},bucket=${{ env.RUNS_ON_S3_BUCKET_CACHE }}
+          cache-to: type=s3,prefix=cache/${{ github.repository }}/${{ env.DOCKER_CACHE_DIR }}/backend/,region=${{ env.RUNS_ON_AWS_REGION }},bucket=${{ env.RUNS_ON_S3_BUCKET_CACHE }},mode=max
 
       # trivy has their own rate limiting issues causing this action to flake
       # we worked around it by hardcoding to different db repos in env
