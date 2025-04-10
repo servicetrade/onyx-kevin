@@ -202,7 +202,7 @@ class OnyxSalesforceSQLite:
 
             start = time.monotonic()
             if cursor.fetchone()[0] == 0:
-                OnyxSalesforceSQLite._update_user_email_map(self._conn)
+                OnyxSalesforceSQLite._update_user_email_map(cursor)
             elapsed = time.monotonic() - start
             logger.info(f"init_db - update_user_email_map: elapsed={elapsed:.2f}")
 
@@ -353,12 +353,12 @@ class OnyxSalesforceSQLite:
 
         updated_ids = []
 
-        # Use IMMEDIATE to get a write lock at the start of the transaction
         with self._conn:
             cursor = self._conn.cursor()
 
             with open(csv_download_path, "r", newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
+                uncommitted_rows = 0
                 for row in reader:
                     parent_ids = set()
                     field_to_remove: set[str] = set()
@@ -404,13 +404,19 @@ class OnyxSalesforceSQLite:
 
                     # Update relationships using the same connection
                     OnyxSalesforceSQLite._update_relationship_tables(
-                        self._conn, id, parent_ids
+                        cursor, id, parent_ids
                     )
                     updated_ids.append(id)
 
+                    # periodically commit or else memory will balloon
+                    uncommitted_rows += 1
+                    if uncommitted_rows >= 1024:
+                        self._conn.commit()
+                        uncommitted_rows = 0
+
             # If we're updating User objects, update the email map
             if object_type == "User":
-                OnyxSalesforceSQLite._update_user_email_map(self._conn)
+                OnyxSalesforceSQLite._update_user_email_map(cursor)
 
         return updated_ids
 
@@ -486,7 +492,7 @@ class OnyxSalesforceSQLite:
 
     @staticmethod
     def _update_relationship_tables(
-        conn: sqlite3.Connection, child_id: str, parent_ids: set[str]
+        cursor: sqlite3.Cursor, child_id: str, parent_ids: set[str]
     ) -> None:
         """Given a child id and a set of parent id's, updates the
         relationships of the child to the parents in the db and removes old relationships.
@@ -498,8 +504,6 @@ class OnyxSalesforceSQLite:
         """
 
         try:
-            cursor = conn.cursor()
-
             # Get existing parent IDs
             cursor.execute(
                 "SELECT parent_id FROM relationships WHERE child_id = ?", (child_id,)
@@ -554,22 +558,20 @@ class OnyxSalesforceSQLite:
             raise
 
     @staticmethod
-    def _update_user_email_map(conn: sqlite3.Connection) -> None:
+    def _update_user_email_map(cursor: sqlite3.Cursor) -> None:
         """Update the user_email_map table with current User objects.
         Called internally by update_sf_db_with_csv when User objects are updated.
         """
 
-        with conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO user_email_map (email, user_id)
-                SELECT json_extract(data, '$.Email'), id
-                FROM salesforce_objects
-                WHERE object_type = 'User'
-                AND json_extract(data, '$.Email') IS NOT NULL
-                """
-            )
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO user_email_map (email, user_id)
+            SELECT json_extract(data, '$.Email'), id
+            FROM salesforce_objects
+            WHERE object_type = 'User'
+            AND json_extract(data, '$.Email') IS NOT NULL
+            """
+        )
 
 
 # @contextmanager
