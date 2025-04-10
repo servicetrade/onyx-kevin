@@ -4,10 +4,8 @@ import os
 import sqlite3
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 
-from onyx.connectors.salesforce.utils import get_sqlite_db_path
 from onyx.connectors.salesforce.utils import SalesforceObject
 from onyx.connectors.salesforce.utils import validate_salesforce_id
 from onyx.utils.logger import setup_logger
@@ -480,29 +478,29 @@ class OnyxSalesforceSQLite:
             return [row[0] for row in cursor.fetchall()]
 
 
-@contextmanager
-def get_db_connection(
-    directory: str,
-    isolation_level: str | None = None,
-) -> Iterator[sqlite3.Connection]:
-    """Get a database connection with proper isolation level and error handling.
+# @contextmanager
+# def get_db_connection(
+#     directory: str,
+#     isolation_level: str | None = None,
+# ) -> Iterator[sqlite3.Connection]:
+#     """Get a database connection with proper isolation level and error handling.
 
-    Args:
-        isolation_level: SQLite isolation level. None = default "DEFERRED",
-            can be "IMMEDIATE" or "EXCLUSIVE" for more strict isolation.
-    """
-    # 60 second timeout for locks
-    conn = sqlite3.connect(get_sqlite_db_path(directory), timeout=60.0)
+#     Args:
+#         isolation_level: SQLite isolation level. None = default "DEFERRED",
+#             can be "IMMEDIATE" or "EXCLUSIVE" for more strict isolation.
+#     """
+#     # 60 second timeout for locks
+#     conn = sqlite3.connect(get_sqlite_db_path(directory), timeout=60.0)
 
-    if isolation_level is not None:
-        conn.isolation_level = isolation_level
-    try:
-        yield conn
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+#     if isolation_level is not None:
+#         conn.isolation_level = isolation_level
+#     try:
+#         yield conn
+#     except Exception:
+#         conn.rollback()
+#         raise
+#     finally:
+#         conn.close()
 
 
 def _update_relationship_tables(

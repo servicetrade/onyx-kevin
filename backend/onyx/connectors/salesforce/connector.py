@@ -23,7 +23,6 @@ from onyx.connectors.salesforce.doc_conversion import convert_sf_object_to_doc
 from onyx.connectors.salesforce.doc_conversion import ID_PREFIX
 from onyx.connectors.salesforce.salesforce_calls import fetch_all_csvs_in_parallel
 from onyx.connectors.salesforce.salesforce_calls import get_all_children_of_sf_type
-from onyx.connectors.salesforce.sqlite_functions import get_record
 from onyx.connectors.salesforce.sqlite_functions import OnyxSalesforceSQLite
 from onyx.connectors.salesforce.utils import BASE_DATA_PATH
 from onyx.connectors.salesforce.utils import get_sqlite_db_path
@@ -279,7 +278,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
                     f"remaining={len(updated_ids) - docs_processed}"
                 )
                 for parent_id in parent_id_batch:
-                    parent_object = get_record(temp_dir, parent_id, parent_type)
+                    parent_object = onyx_db.get_record(parent_id, parent_type)
                     if not parent_object:
                         logger.warning(
                             f"Failed to get parent object {parent_id} for {parent_type}"
@@ -287,7 +286,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
                         continue
 
                     doc = convert_sf_object_to_doc(
-                        temp_dir,
+                        onyx_db,
                         sf_object=parent_object,
                         sf_instance=self.sf_client.sf_instance,
                     )
