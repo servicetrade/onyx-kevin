@@ -31,6 +31,9 @@ class OnyxSalesforceSQLite:
         self._conn: sqlite3.Connection | None = None
         self._existing_db = True
 
+    def __del__(self) -> None:
+        self.close()
+
     def connect(self) -> None:
         if self._conn is not None:
             self._conn.close()
