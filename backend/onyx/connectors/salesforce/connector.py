@@ -123,6 +123,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
 
         # This takes like 30 minutes first time and <2 minutes for updates
         object_type_to_csv_path = fetch_all_csvs_in_parallel(
+            sf_db=sf_db,
             sf_client=sf_client,
             all_types_to_filter=all_types_to_filter,
             start=start,

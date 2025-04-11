@@ -10,6 +10,7 @@ from simple_salesforce.bulk2 import SFBulk2Handler
 from simple_salesforce.bulk2 import SFBulk2Type
 
 from onyx.connectors.interfaces import SecondsSinceUnixEpoch
+from onyx.connectors.salesforce.sqlite_functions import OnyxSalesforceSQLite
 from onyx.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -183,6 +184,7 @@ def _bulk_retrieve_from_salesforce(
 
 
 def fetch_all_csvs_in_parallel(
+    sf_db: OnyxSalesforceSQLite,
     sf_client: Salesforce,
     all_types_to_filter: dict[str, bool],
     start: SecondsSinceUnixEpoch | None,
