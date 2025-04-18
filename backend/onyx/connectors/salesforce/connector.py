@@ -111,7 +111,6 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
 
     @staticmethod
     def _download_object_csvs(
-        sf_db: OnyxSalesforceSQLite,
         all_types_to_filter: dict[str, bool],
         directory: str,
         sf_client: Salesforce,
@@ -123,7 +122,6 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
 
         # This takes like 30 minutes first time and <2 minutes for updates
         object_type_to_csv_path = fetch_all_csvs_in_parallel(
-            sf_db=sf_db,
             sf_client=sf_client,
             all_types_to_filter=all_types_to_filter,
             start=start,
@@ -263,7 +261,7 @@ class SalesforceConnector(LoadConnector, PollConnector, SlimConnector):
 
             # Step 1.2 - bulk download the CSV for each object type
             SalesforceConnector._download_object_csvs(
-                sf_db, all_types_to_filter, temp_dir, self._sf_client, start, end
+                all_types_to_filter, temp_dir, self._sf_client, start, end
             )
             gc.collect()
 
