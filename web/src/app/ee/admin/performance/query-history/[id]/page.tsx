@@ -95,7 +95,7 @@ export default function QueryPage(props: { params: Promise<{ id: string }> }) {
       <CardSection className="mt-4">
         <Title>Chat Session Details</Title>
 
-        <Text className="flex flex-wrap whitespace-normal mt-1 text-s">
+        <Text className="flex flex-wrap whitespace-normal mt-1 text-sm">
           {chatSessionSnapshot.assistant_name}
         </Text>
         <Text className="flex flex-wrap whitespace-normal mt-1 text-xs">
