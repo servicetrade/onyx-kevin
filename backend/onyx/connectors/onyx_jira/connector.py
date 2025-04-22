@@ -134,6 +134,8 @@ def process_jira_issue(
     if labels := best_effort_get_field_from_issue(issue, "labels"):
         metadata_dict["labels"] = labels
 
+    metadata_dict[_FIELD_KEY] = issue.key
+
     return Document(
         id=page_url,
         sections=[TextSection(link=page_url, text=ticket_content)],
