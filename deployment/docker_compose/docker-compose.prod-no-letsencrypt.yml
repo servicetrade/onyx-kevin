@@ -194,6 +194,7 @@ services:
         max-size: "50m"
         max-file: "6"
 
+  # Instead of using nginx:1.23.4-alpine directly, build a custom image
   nginx:
     build:
       context: .
