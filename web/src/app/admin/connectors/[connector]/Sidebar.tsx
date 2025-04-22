@@ -85,7 +85,7 @@ export default function Sidebar() {
               {enterpriseSettings && enterpriseSettings.application_name ? (
                 <HeaderTitle>{enterpriseSettings.application_name}</HeaderTitle>
               ) : (
-                <HeaderTitle>Onyx</HeaderTitle>
+                <HeaderTitle>Kevin AI</HeaderTitle>
               )}
             </div>
           </div>

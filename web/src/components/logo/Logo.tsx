@@ -34,10 +34,11 @@ export function Logo({
   ) {
     return (
       <div style={{ height, width }} className={className}>
-        <OnyxIcon
-          size={height}
-          className={`${className} dark:text-[#fff] text-[#000]`}
-        />
+			<img
+				src="/logo-dark.png"
+				alt="Logo"
+				style={{ objectFit: "contain", height, width }}
+			/>
       </div>
     );
   }
@@ -63,9 +64,11 @@ export function LogoType({
   size?: "small" | "default" | "large";
 }) {
   return (
-    <OnyxLogoTypeIcon
-      size={115}
-      className={`items-center w-full dark:text-[#fff]`}
+    <img
+		src="/logotype-dark.png"
+		alt="Logo"
+		style={{ objectFit: "contain" }}
+		className="items-center w-full"
     />
   );
 }

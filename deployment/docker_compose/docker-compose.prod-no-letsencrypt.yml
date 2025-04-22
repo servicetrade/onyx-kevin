@@ -122,7 +122,7 @@ services:
     environment:
       - MIN_THREADS_ML_MODELS=${MIN_THREADS_ML_MODELS:-}
       # Set to debug to get more fine-grained logs
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
     volumes:
       # Not necessary, this is just to reduce download time during startup
       - model_cache_huggingface:/root/.cache/huggingface/
@@ -195,7 +195,9 @@ services:
         max-file: "6"
 
   nginx:
-    image: nginx:1.23.4-alpine
+    build:
+      context: .
+      dockerfile: nginx.Dockerfile
     restart: always
     # nginx will immediately crash with `nginx: [emerg] host not found in upstream`
     # if api_server / web_server are not up
@@ -204,10 +206,8 @@ services:
       - web_server
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ../data/nginx:/etc/nginx/conf.d
-      - ../data/sslcerts:/etc/nginx/sslcerts
     logging:
       driver: json-file
       options:
