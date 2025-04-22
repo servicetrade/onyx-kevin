@@ -131,7 +131,6 @@ export function AssistantModal({ hideModal }: AssistantModalProps) {
           ease-in-out
           relative
           w-11/12
-          max-w-4xl
           pt-10
           pb-10
           px-10
