@@ -134,7 +134,6 @@ export function AssistantModal({ hideModal }: AssistantModalProps) {
           pt-10
           pb-10
           px-10
-          overflow-hidden
           flex
           flex-col"
         style={{
