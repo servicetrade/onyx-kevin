@@ -1,8 +1,8 @@
 "use client";
 
 import { useContext } from "react";
+import { useTheme } from "next-themes";
 import { SettingsContext } from "../settings/SettingsProvider";
-import { OnyxIcon, OnyxLogoTypeIcon } from "../icons/icons";
 
 export function Logo({
   height,
@@ -16,6 +16,7 @@ export function Logo({
   size?: "small" | "default" | "large";
 }) {
   const settings = useContext(SettingsContext);
+  const { resolvedTheme } = useTheme();
 
   const sizeMap = {
     small: { height: 24, width: 22 },
@@ -35,7 +36,7 @@ export function Logo({
     return (
       <div style={{ height, width }} className={className}>
 			<img
-				src="/logo-dark.png"
+				src={resolvedTheme === "dark" ? "/logo-dark.png" : "/logo.png"}
 				alt="Logo"
 				style={{ objectFit: "contain", height, width }}
 			/>
@@ -63,9 +64,11 @@ export function LogoType({
 }: {
   size?: "small" | "default" | "large";
 }) {
+  const { resolvedTheme } = useTheme();
+  
   return (
     <img
-		src="/logotype-dark.png"
+		src={resolvedTheme === "dark" ? "/logotype-dark.png" : "/logotype.png"}
 		alt="Logo"
 		style={{ objectFit: "contain" }}
 		className="items-center w-full"
