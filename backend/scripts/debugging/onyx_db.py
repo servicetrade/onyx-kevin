@@ -26,7 +26,7 @@ if True:  # noqa: E402
 
     import heapq
 
-logger = setup_logger()
+    logger = setup_logger()
 
 
 class TenantMetadata(BaseModel):
