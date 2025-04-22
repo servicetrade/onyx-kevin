@@ -16,7 +16,7 @@ export function Logo({
   size?: "small" | "default" | "large";
 }) {
   const settings = useContext(SettingsContext);
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
 
   const sizeMap = {
     small: { height: 24, width: 22 },
@@ -36,7 +36,7 @@ export function Logo({
     return (
       <div style={{ height, width }} className={className}>
 			<img
-				src={theme === "dark" ? "/logo-dark.png" : "/logo.png"}
+				src={resolvedTheme === "dark" ? "/logo-dark.png" : "/logo.png"}
 				alt="Logo"
 				style={{ objectFit: "contain", height, width }}
 			/>
@@ -64,11 +64,11 @@ export function LogoType({
 }: {
   size?: "small" | "default" | "large";
 }) {
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   
   return (
     <img
-		src={theme === "dark" ? "/logotype-dark.png" : "/logotype.png"}
+		src={resolvedTheme === "dark" ? "/logotype-dark.png" : "/logotype.png"}
 		alt="Logo"
 		style={{ objectFit: "contain" }}
 		className="items-center w-full"
