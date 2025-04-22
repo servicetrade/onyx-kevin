@@ -5,26 +5,26 @@ import os
 # hack to work around excessive use of globals in other functions
 os.environ["MULTI_TENANT"] = "True"
 
+if True:  # noqa: E402
+    import csv
+    import argparse
 
-import csv
-import argparse
+    from pydantic import BaseModel
+    from sqlalchemy import func
 
-from pydantic import BaseModel
-from sqlalchemy import func
+    from onyx.db.engine import (
+        SYNC_DB_API,
+        USE_IAM_AUTH,
+        build_connection_string,
+        get_all_tenant_ids,
+    )
+    from onyx.db.engine import get_session_with_tenant
+    from onyx.db.engine import SqlEngine
+    from onyx.db.models import Document
+    from onyx.utils.logger import setup_logger
+    from shared_configs.contextvars import CURRENT_TENANT_ID_CONTEXTVAR
 
-from onyx.db.engine import (
-    SYNC_DB_API,
-    USE_IAM_AUTH,
-    build_connection_string,
-    get_all_tenant_ids,
-)
-from onyx.db.engine import get_session_with_tenant
-from onyx.db.engine import SqlEngine
-from onyx.db.models import Document
-from onyx.utils.logger import setup_logger
-from shared_configs.contextvars import CURRENT_TENANT_ID_CONTEXTVAR
-
-import heapq
+    import heapq
 
 logger = setup_logger()
 
@@ -35,7 +35,7 @@ class TenantMetadata(BaseModel):
 
 
 class SQLAlchemyDebugging:
-    # Class for managing Vespa debugging actions.
+    # Class for managing DB debugging actions.
     def __init__(self) -> None:
         pass
 
@@ -84,7 +84,7 @@ class SQLAlchemyDebugging:
             finally:
                 CURRENT_TENANT_ID_CONTEXTVAR.reset(token)
 
-        # sort all and dump to csv
+        # sort all by docs and dump to csv
         sorted_tenants = sorted(
             tenants_to_total_chunks.items(),
             key=lambda x: (x[1].num_chunks, x[1].num_docs),
@@ -100,7 +100,7 @@ class SQLAlchemyDebugging:
                 writer.writerow([tenant_id, metadata.num_docs, metadata.num_chunks])
             logger.info(f"Successfully wrote statistics to {csv_filename}")
 
-        # sorted
+        # output top k by chunks
         top_k_tenants = heapq.nlargest(
             k, tenants_to_total_chunks.items(), key=lambda x: x[1].num_docs
         )
