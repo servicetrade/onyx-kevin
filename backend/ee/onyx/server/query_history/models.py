@@ -1,4 +1,6 @@
 from datetime import datetime
+from enum import Enum
+from typing import List
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -9,6 +11,28 @@ from onyx.configs.constants import QAFeedbackType
 from onyx.configs.constants import SessionType
 from onyx.db.models import ChatMessage
 from onyx.db.models import ChatSession
+
+
+class GroupingType(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class ChatSessionGroupRequest(BaseModel):
+    start_time: str
+    end_time: str
+    grouping_type: GroupingType
+
+
+class ChatSessionGroupData(BaseModel):
+    name: str
+    count: int
+
+
+class ChatSessionGroupResponse(BaseModel):
+    data: List[ChatSessionGroupData]
+    total_rows: int
+    total_sessions: int
 
 
 class AbridgedSearchDoc(BaseModel):

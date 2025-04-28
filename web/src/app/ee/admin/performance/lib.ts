@@ -1,6 +1,12 @@
 import { errorHandlingFetcher } from "@/lib/fetcher";
 import useSWR, { mutate } from "swr";
-import { OnyxBotAnalytics, QueryAnalytics, UserAnalytics } from "./usage/types";
+import {
+  ChatSessionGroupResponse,
+  GroupingType,
+  OnyxBotAnalytics,
+  QueryAnalytics,
+  UserAnalytics,
+} from "./usage/types";
 import { useState } from "react";
 import { buildApiPath } from "@/lib/urlBuilder";
 
@@ -134,5 +140,43 @@ export const usePersonaUniqueUsers = (
     error,
     isLoading,
     refreshPersonaUniqueUsers: () => mutate(url),
+  };
+};
+
+export const useChatSessionGroups = (
+  timeRange: DateRangePickerValue,
+  groupingType: GroupingType
+) => {
+  const url = "/api/admin/chat-session-groups";
+
+  const { data, error, isLoading } = useSWR<ChatSessionGroupResponse>(
+    timeRange?.from && timeRange?.to
+      ? [
+          url,
+          {
+            start_time: convertDateToStartOfDay(timeRange.from)?.toISOString(),
+            end_time: convertDateToEndOfDay(timeRange.to)?.toISOString(),
+            grouping_type: groupingType,
+          },
+        ]
+      : null,
+    async ([url, payload]) => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch chat session groups");
+      }
+      return response.json();
+    }
+  );
+
+  return {
+    data,
+    error,
+    isLoading,
+    refreshChatSessionGroups: () => mutate(url),
   };
 };

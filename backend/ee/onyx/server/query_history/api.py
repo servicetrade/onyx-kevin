@@ -12,11 +12,17 @@ from fastapi import Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from ee.onyx.db.analytics import fetch_chat_sessions_by_assistant
+from ee.onyx.db.analytics import fetch_chat_sessions_by_user
 from ee.onyx.db.query_history import fetch_chat_sessions_eagerly_by_time
 from ee.onyx.db.query_history import get_page_of_chat_sessions
 from ee.onyx.db.query_history import get_total_filtered_chat_sessions_count
+from ee.onyx.server.query_history.models import ChatSessionGroupData
+from ee.onyx.server.query_history.models import ChatSessionGroupRequest
+from ee.onyx.server.query_history.models import ChatSessionGroupResponse
 from ee.onyx.server.query_history.models import ChatSessionMinimal
 from ee.onyx.server.query_history.models import ChatSessionSnapshot
+from ee.onyx.server.query_history.models import GroupingType
 from ee.onyx.server.query_history.models import MessageSnapshot
 from ee.onyx.server.query_history.models import QuestionAnswerPairSnapshot
 from onyx.auth.users import current_admin_user
@@ -286,4 +292,39 @@ def get_query_history_as_csv(
         iter([stream.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment;filename=onyx_query_history.csv"},
+    )
+
+
+@router.post("/admin/chat-session-groups")
+def get_chat_session_groups(
+    request: ChatSessionGroupRequest,
+    _: User | None = Depends(current_admin_user),
+    db_session: Session = Depends(get_session),
+) -> ChatSessionGroupResponse:
+    """Get chat sessions grouped by user or assistant."""
+    if ONYX_QUERY_HISTORY_TYPE == QueryHistoryType.DISABLED:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail="Query history has been disabled by the administrator.",
+        )
+
+    try:
+        start_time = datetime.fromisoformat(request.start_time)
+        end_time = datetime.fromisoformat(request.end_time)
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail="Invalid datetime format. Use ISO format."
+        )
+
+    if request.grouping_type == GroupingType.USER:
+        results = fetch_chat_sessions_by_user(db_session, start_time, end_time)
+    else:
+        results = fetch_chat_sessions_by_assistant(db_session, start_time, end_time)
+
+    total_sessions = sum(count for _, count in results)
+
+    data = [ChatSessionGroupData(name=name, count=count) for name, count in results]
+
+    return ChatSessionGroupResponse(
+        data=data, total_rows=len(data), total_sessions=total_sessions
     )

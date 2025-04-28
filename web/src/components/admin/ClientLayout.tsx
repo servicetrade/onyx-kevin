@@ -301,6 +301,18 @@ export function ClientLayout({
                           ),
                           link: "/admin/users",
                         },
+                        {
+                          name: (
+                            <div className="flex">
+                              <FiBarChart2
+                                className="text-text-700"
+                                size={18}
+                              />
+                              <div className="ml-1">Reports</div>
+                            </div>
+                          ),
+                          link: "/admin/users/reports",
+                        },
                         ...(enableEnterprise
                           ? [
                               {
