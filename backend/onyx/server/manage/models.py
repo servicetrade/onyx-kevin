@@ -8,7 +8,6 @@ from pydantic import Field
 from pydantic import field_validator
 from pydantic import model_validator
 
-from ee.onyx.server.manage.models import StandardAnswerCategory
 from onyx.auth.schemas import UserRole
 from onyx.configs.app_configs import TRACK_EXTERNAL_IDP_EXPIRY
 from onyx.configs.constants import AuthType
@@ -17,6 +16,7 @@ from onyx.db.models import AllowedAnswerFilters
 from onyx.db.models import ChannelConfig
 from onyx.db.models import SlackBot as SlackAppModel
 from onyx.db.models import SlackChannelConfig as SlackChannelConfigModel
+from onyx.db.models import StandardAnswerCategory
 from onyx.db.models import User
 from onyx.onyxbot.slack.config import VALID_SLACK_FILTERS
 from onyx.server.features.persona.models import FullPersonaSnapshot
@@ -254,10 +254,9 @@ class SlackChannelConfig(BaseModel):
             ),
             channel_config=slack_channel_config_model.channel_config,
             # XXX this is going away soon
-            standard_answer_categories=[
-                StandardAnswerCategory.from_model(standard_answer_category_model)
-                for standard_answer_category_model in slack_channel_config_model.standard_answer_categories
-            ],
+            standard_answer_categories=list(
+                slack_channel_config_model.standard_answer_categories
+            ),
             enable_auto_filters=slack_channel_config_model.enable_auto_filters,
             is_default=slack_channel_config_model.is_default,
         )
