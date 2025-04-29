@@ -58,7 +58,7 @@ def fetch_chat_sessions_by_user(
             """
             SELECT u.email, COUNT(DISTINCT cs.id) as session_count
             FROM chat_session cs
-            JOIN users u ON cs.user_id = u.id
+            JOIN "user" u ON cs.user_id = u.id
             WHERE cs.time_created BETWEEN :start_time AND :end_time
             GROUP BY u.email
             ORDER BY session_count DESC
