@@ -147,7 +147,7 @@ export const useChatSessionGroups = (
   timeRange: DateRangePickerValue,
   groupingType: GroupingType
 ) => {
-  const url = "/api/admin/chat-session-groups";
+  const url = buildApiPath("/api/admin/chat-session-groups");
 
   const { data, error, isLoading } = useSWR<ChatSessionGroupResponse>(
     timeRange?.from && timeRange?.to
