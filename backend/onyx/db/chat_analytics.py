@@ -3,6 +3,7 @@ from typing import List
 from typing import Tuple
 
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -18,23 +19,21 @@ def check_table_exists(db_session: Session, table_name: str) -> bool:
     Returns:
         True if the table exists, False otherwise
     """
-    return True
+    query = text(
+        """
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = :table_name
+        )
+    """
+    )
 
-    # query = text(
-    #     """
-    #     SELECT EXISTS (
-    #         SELECT FROM information_schema.tables
-    #         WHERE table_schema = 'public'
-    #         AND table_name = :table_name
-    #     )
-    # """
-    # )
-    #
-    # try:
-    #     result = db_session.execute(query, {"table_name": table_name})
-    #     return result.scalar()
-    # except SQLAlchemyError:
-    #     return False
+    try:
+        result = db_session.execute(query, {"table_name": table_name})
+        return result.scalar()
+    except SQLAlchemyError:
+        return False
 
 
 def fetch_chat_sessions_by_user(
@@ -70,6 +69,10 @@ def fetch_chat_sessions_by_user(
             query, {"start_time": start_time, "end_time": end_time}
         )
         return [(row[0], row[1]) for row in result]
+    except ProgrammingError as e:
+        if "relation" in str(e) and "does not exist" in str(e):
+            return [("No chat history data available", 0)]
+        return [(f"Error fetching data: {str(e)}", 0)]
     except SQLAlchemyError as e:
         return [(f"Error fetching data: {str(e)}", 0)]
 
@@ -107,5 +110,9 @@ def fetch_chat_sessions_by_assistant(
             query, {"start_time": start_time, "end_time": end_time}
         )
         return [(row[0], row[1]) for row in result]
+    except ProgrammingError as e:
+        if "relation" in str(e) and "does not exist" in str(e):
+            return [("No chat history data available", 0)]
+        return [(f"Error fetching data: {str(e)}", 0)]
     except SQLAlchemyError as e:
         return [(f"Error fetching data: {str(e)}", 0)]
