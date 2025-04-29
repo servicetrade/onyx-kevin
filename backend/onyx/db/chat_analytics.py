@@ -50,16 +50,16 @@ def fetch_chat_sessions_by_user(
     Returns:
         List of tuples containing (user_email, session_count)
     """
-    if not check_table_exists(db_session, "chat_history"):
+    if not check_table_exists(db_session, "chat_session"):
         return [("No chat history data available", 0)]
 
     try:
         query = text(
             """
-            SELECT u.email, COUNT(DISTINCT ch.id) as session_count
-            FROM chat_history ch
-            JOIN users u ON ch.user_id = u.id
-            WHERE ch.created_at BETWEEN :start_time AND :end_time
+            SELECT u.email, COUNT(DISTINCT cs.id) as session_count
+            FROM chat_session cs
+            JOIN users u ON cs.user_id = u.id
+            WHERE cs.time_created BETWEEN :start_time AND :end_time
             GROUP BY u.email
             ORDER BY session_count DESC
         """
@@ -91,16 +91,17 @@ def fetch_chat_sessions_by_assistant(
     Returns:
         List of tuples containing (assistant_name, session_count)
     """
-    if not check_table_exists(db_session, "chat_history"):
+    if not check_table_exists(db_session, "chat_session"):
         return [("No chat history data available", 0)]
 
     try:
         query = text(
             """
-            SELECT COALESCE(ch.assistant_name, 'Default Assistant') as assistant,
-                COUNT(DISTINCT ch.id) as session_count
-            FROM chat_history ch
-            WHERE ch.created_at BETWEEN :start_time AND :end_time
+            SELECT COALESCE(p.name, 'Default Assistant') as assistant,
+                COUNT(DISTINCT cs.id) as session_count
+            FROM chat_session cs
+            LEFT JOIN persona p ON cs.persona_id = p.id
+            WHERE cs.time_created BETWEEN :start_time AND :end_time
             GROUP BY assistant
             ORDER BY session_count DESC
         """
