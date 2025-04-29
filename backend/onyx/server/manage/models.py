@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import List
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -27,6 +28,28 @@ from onyx.server.models import InvitedUserSnapshot
 
 if TYPE_CHECKING:
     pass
+
+
+class GroupingType(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class ChatSessionGroupData(BaseModel):
+    name: str
+    count: int
+
+
+class ChatSessionGroupRequest(BaseModel):
+    start_time: str
+    end_time: str
+    grouping_type: GroupingType
+
+
+class ChatSessionGroupResponse(BaseModel):
+    data: List[ChatSessionGroupData]
+    total_rows: int
+    total_sessions: int
 
 
 class VersionResponse(BaseModel):
