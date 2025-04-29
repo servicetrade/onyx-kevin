@@ -41,7 +41,11 @@ export const useChatSessionGroups = (
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        throw new Error("Failed to fetch chat session groups");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.detail ||
+            `Failed to fetch chat session groups (${response.status}): ${response.statusText}`
+        );
       }
       return response.json();
     }

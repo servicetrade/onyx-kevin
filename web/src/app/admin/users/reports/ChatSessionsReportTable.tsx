@@ -29,7 +29,10 @@ export function ChatSessionsReportTable({
     return (
       <ErrorCallout
         errorTitle="Error fetching chat session data"
-        errorMsg={error?.message}
+        errorMsg={
+          error?.message ||
+          "The server encountered an error processing your request. This may be due to database connectivity issues."
+        }
       />
     );
   }
