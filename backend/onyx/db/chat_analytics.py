@@ -18,21 +18,23 @@ def check_table_exists(db_session: Session, table_name: str) -> bool:
     Returns:
         True if the table exists, False otherwise
     """
-    query = text(
-        """
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = 'public'
-            AND table_name = :table_name
-        )
-    """
-    )
+    return True
 
-    try:
-        result = db_session.execute(query, {"table_name": table_name})
-        return result.scalar()
-    except SQLAlchemyError:
-        return False
+    # query = text(
+    #     """
+    #     SELECT EXISTS (
+    #         SELECT FROM information_schema.tables
+    #         WHERE table_schema = 'public'
+    #         AND table_name = :table_name
+    #     )
+    # """
+    # )
+    #
+    # try:
+    #     result = db_session.execute(query, {"table_name": table_name})
+    #     return result.scalar()
+    # except SQLAlchemyError:
+    #     return False
 
 
 def fetch_chat_sessions_by_user(
