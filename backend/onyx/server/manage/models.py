@@ -238,6 +238,8 @@ class SlackChannelConfig(BaseModel):
     enable_auto_filters: bool
     is_default: bool
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     @classmethod
     def from_model(
         cls, slack_channel_config_model: SlackChannelConfigModel
