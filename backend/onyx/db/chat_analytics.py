@@ -1,11 +1,21 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List
-from typing import Tuple
+from typing import Optional
 
-from sqlalchemy import text
+from sqlalchemy import text, select, func, desc, join
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+from onyx.db.models import ChatSession, User, Persona
+
+
+@dataclass
+class ChatSessionsAnalyticsData:
+    """Data class for chat sessions analytics results."""
+    name: str
+    count: int
 
 
 def check_table_exists(db_session: Session, table_name: str) -> bool:
@@ -38,7 +48,7 @@ def check_table_exists(db_session: Session, table_name: str) -> bool:
 
 def fetch_chat_sessions_by_user(
     db_session: Session, start_time: datetime, end_time: datetime
-) -> List[Tuple[str, int]]:
+) -> List[ChatSessionsAnalyticsData]:
     """
     Fetch chat sessions grouped by user email.
 
@@ -48,38 +58,36 @@ def fetch_chat_sessions_by_user(
         end_time: End time for filtering
 
     Returns:
-        List of tuples containing (user_email, session_count)
+        List of ChatSessionsAnalyticsData objects with user email and session count
+
+    Raises:
+        SQLAlchemyError: If there's a database query error
     """
     if not check_table_exists(db_session, "chat_session"):
-        return [("No chat history data available", 0)]
+        return [ChatSessionsAnalyticsData(name="No chat history data available", count=0)]
 
     try:
-        query = text(
-            """
-            SELECT u.email, COUNT(DISTINCT cs.id) as session_count
-            FROM chat_session cs
-            JOIN "user" u ON cs.user_id = u.id
-            WHERE cs.time_created BETWEEN :start_time AND :end_time
-            GROUP BY u.email
-            ORDER BY session_count DESC
-        """
+        stmt = (
+            select(User.email, func.count(ChatSession.id).label("session_count"))
+            .join(ChatSession, User.id == ChatSession.user_id)
+            .where(ChatSession.time_created.between(start_time, end_time))
+            .group_by(User.email)
+            .order_by(desc("session_count"))
         )
 
-        result = db_session.execute(
-            query, {"start_time": start_time, "end_time": end_time}
-        )
-        return [(row[0], row[1]) for row in result]
+        result = db_session.execute(stmt)
+        return [ChatSessionsAnalyticsData(name=row[0], count=row[1]) for row in result]
     except ProgrammingError as e:
         if "relation" in str(e) and "does not exist" in str(e):
-            return [("No chat history data available", 0)]
-        return [(f"Error fetching data: {str(e)}", 0)]
-    except SQLAlchemyError as e:
-        return [(f"Error fetching data: {str(e)}", 0)]
+            return [ChatSessionsAnalyticsData(name="No chat history data available", count=0)]
+        raise
+    except SQLAlchemyError:
+        raise
 
 
 def fetch_chat_sessions_by_assistant(
     db_session: Session, start_time: datetime, end_time: datetime
-) -> List[Tuple[str, int]]:
+) -> List[ChatSessionsAnalyticsData]:
     """
     Fetch chat sessions grouped by assistant name.
 
@@ -89,31 +97,33 @@ def fetch_chat_sessions_by_assistant(
         end_time: End time for filtering
 
     Returns:
-        List of tuples containing (assistant_name, session_count)
+        List of ChatSessionsAnalyticsData objects with assistant name and session count
+        
+    Raises:
+        SQLAlchemyError: If there's a database query error
     """
     if not check_table_exists(db_session, "chat_session"):
-        return [("No chat history data available", 0)]
+        return [ChatSessionsAnalyticsData(name="No chat history data available", count=0)]
 
     try:
-        query = text(
-            """
-            SELECT COALESCE(p.name, 'Default Assistant') as assistant,
-                COUNT(DISTINCT cs.id) as session_count
-            FROM chat_session cs
-            LEFT JOIN persona p ON cs.persona_id = p.id
-            WHERE cs.time_created BETWEEN :start_time AND :end_time
-            GROUP BY assistant
-            ORDER BY session_count DESC
-        """
+        # Using func.coalesce to match the SQL COALESCE function
+        stmt = (
+            select(
+                func.coalesce(Persona.name, "Default Assistant").label("assistant_name"),
+                func.count(ChatSession.id.distinct()).label("session_count"),
+            )
+            .select_from(ChatSession)
+            .outerjoin(Persona, ChatSession.persona_id == Persona.id)
+            .where(ChatSession.time_created.between(start_time, end_time))
+            .group_by("assistant_name")
+            .order_by(desc("session_count"))
         )
 
-        result = db_session.execute(
-            query, {"start_time": start_time, "end_time": end_time}
-        )
-        return [(row[0], row[1]) for row in result]
+        result = db_session.execute(stmt)
+        return [ChatSessionsAnalyticsData(name=row[0], count=row[1]) for row in result]
     except ProgrammingError as e:
         if "relation" in str(e) and "does not exist" in str(e):
-            return [("No chat history data available", 0)]
-        return [(f"Error fetching data: {str(e)}", 0)]
-    except SQLAlchemyError as e:
-        return [(f"Error fetching data: {str(e)}", 0)]
+            return [ChatSessionsAnalyticsData(name="No chat history data available", count=0)]
+        raise
+    except SQLAlchemyError:
+        raise
