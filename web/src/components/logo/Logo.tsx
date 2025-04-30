@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext } from "react";
+import { useContext, useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { SettingsContext } from "../settings/SettingsProvider";
 
@@ -17,6 +17,11 @@ export function Logo({
 }) {
   const settings = useContext(SettingsContext);
   const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const sizeMap = {
     small: { height: 24, width: 22 },
@@ -35,11 +40,13 @@ export function Logo({
   ) {
     return (
       <div style={{ height, width }} className={className}>
-			<img
-				src={resolvedTheme === "dark" ? "/logo-dark.png" : "/logo.png"}
-				alt="Logo"
-				style={{ objectFit: "contain", height, width }}
-			/>
+        <img
+          src={
+            mounted && resolvedTheme === "dark" ? "/logo-dark.png" : "/logo.png"
+          }
+          alt="Logo"
+          style={{ objectFit: "contain", height, width }}
+        />
       </div>
     );
   }
@@ -65,13 +72,22 @@ export function LogoType({
   size?: "small" | "default" | "large";
 }) {
   const { resolvedTheme } = useTheme();
-  
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <img
-		src={resolvedTheme === "dark" ? "/logotype-dark.png" : "/logotype.png"}
-		alt="Logo"
-		style={{ objectFit: "contain" }}
-		className="items-center w-full"
+      src={
+        mounted && resolvedTheme === "dark"
+          ? "/logotype-dark.png"
+          : "/logotype.png"
+      }
+      alt="Logo"
+      style={{ objectFit: "contain" }}
+      className="items-center w-full"
     />
   );
 }
