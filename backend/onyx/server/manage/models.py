@@ -8,7 +8,6 @@ from pydantic import Field
 from pydantic import field_validator
 from pydantic import model_validator
 
-from ee.onyx.server.manage.models import StandardAnswerCategory
 from onyx.auth.schemas import UserRole
 from onyx.configs.app_configs import TRACK_EXTERNAL_IDP_EXPIRY
 from onyx.configs.constants import AuthType
@@ -17,12 +16,27 @@ from onyx.db.models import AllowedAnswerFilters
 from onyx.db.models import ChannelConfig
 from onyx.db.models import SlackBot as SlackAppModel
 from onyx.db.models import SlackChannelConfig as SlackChannelConfigModel
+from onyx.db.models import StandardAnswerCategory as StandardAnswerCategoryModel
 from onyx.db.models import User
 from onyx.onyxbot.slack.config import VALID_SLACK_FILTERS
 from onyx.server.features.persona.models import FullPersonaSnapshot
 from onyx.server.features.persona.models import PersonaSnapshot
 from onyx.server.models import FullUserSnapshot
 from onyx.server.models import InvitedUserSnapshot
+
+
+class StandardAnswerCategory(BaseModel):
+    id: int
+    name: str
+
+    @classmethod
+    def from_model(
+        cls, standard_answer_category: StandardAnswerCategoryModel
+    ) -> "StandardAnswerCategory":
+        return cls(
+            id=standard_answer_category.id,
+            name=standard_answer_category.name,
+        )
 
 
 if TYPE_CHECKING:
