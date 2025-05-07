@@ -128,6 +128,7 @@ from onyx.utils.telemetry import create_milestone_and_report
 from onyx.utils.threadpool_concurrency import run_functions_tuples_in_parallel
 from onyx.utils.variable_functionality import fetch_ee_implementation_or_noop
 
+
 logger = setup_logger()
 
 _GMAIL_CREDENTIAL_ID_COOKIE_NAME = "gmail_credential_id"
@@ -430,6 +431,15 @@ def upload_files(files: list[UploadFile], db_session: Session) -> FileUploadResp
                         )
                 continue
 
+            # Special handling for docx files - only store the plaintext version
+            if file.content_type and file.content_type.startswith(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ):
+                file_path = convert_docx_to_txt(file, file_store)
+                deduped_file_paths.append(file_path)
+                continue
+
+            # Default handling for all other file types
             file_path = os.path.join(str(uuid.uuid4()), cast(str, file.filename))
             deduped_file_paths.append(file_path)
             file_store.save_file(
@@ -439,11 +449,6 @@ def upload_files(files: list[UploadFile], db_session: Session) -> FileUploadResp
                 file_origin=FileOrigin.CONNECTOR,
                 file_type=file.content_type or "text/plain",
             )
-
-            if file.content_type and file.content_type.startswith(
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            ):
-                convert_docx_to_txt(file, file_store, file_path)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -778,6 +783,7 @@ def get_connector_indexing_status(
                 name=cc_pair.name,
                 in_progress=in_progress,
                 cc_pair_status=cc_pair.status,
+                in_repeated_error_state=cc_pair.in_repeated_error_state,
                 connector=ConnectorSnapshot.from_connector_db_model(
                     connector, connector_to_cc_pair_ids.get(connector.id, [])
                 ),

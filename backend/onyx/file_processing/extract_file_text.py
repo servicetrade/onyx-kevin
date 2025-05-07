@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import uuid
 import zipfile
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -158,6 +159,8 @@ def load_files_from_zip(
                     zip_metadata = json.load(metadata_file)
                     if isinstance(zip_metadata, list):
                         # convert list of dicts to dict of dicts
+                        # Use just the basename for matching since metadata may not include
+                        # the full path within the ZIP file
                         zip_metadata = {d["filename"]: d for d in zip_metadata}
                 except json.JSONDecodeError:
                     logger.warning(f"Unable to load {DANSWER_METADATA_FILENAME}")
@@ -175,7 +178,13 @@ def load_files_from_zip(
                 continue
 
             with zip_file.open(file_info.filename, "r") as subfile:
-                yield file_info, subfile, zip_metadata.get(file_info.filename, {})
+                # Try to match by exact filename first
+                if file_info.filename in zip_metadata:
+                    yield file_info, subfile, zip_metadata.get(file_info.filename, {})
+                else:
+                    # Then try matching by just the basename
+                    basename = os.path.basename(file_info.filename)
+                    yield file_info, subfile, zip_metadata.get(basename, {})
 
 
 def _extract_onyx_metadata(line: str) -> dict | None:
@@ -567,9 +576,7 @@ def extract_text_and_images(
         return ExtractionResult(text_content="", embedded_images=[], metadata={})
 
 
-def convert_docx_to_txt(
-    file: UploadFile, file_store: FileStore, file_path: str
-) -> None:
+def convert_docx_to_txt(file: UploadFile, file_store: FileStore) -> str:
     """
     Helper to convert docx to a .txt file in the same filestore.
     """
@@ -581,14 +588,15 @@ def convert_docx_to_txt(
     all_paras = [p.text for p in doc.paragraphs]
     text_content = "\n".join(all_paras)
 
-    txt_file_path = docx_to_txt_filename(file_path)
+    text_file_name = docx_to_txt_filename(file.filename or f"docx_{uuid.uuid4()}")
     file_store.save_file(
-        file_name=txt_file_path,
+        file_name=text_file_name,
         content=BytesIO(text_content.encode("utf-8")),
         display_name=file.filename,
         file_origin=FileOrigin.CONNECTOR,
         file_type="text/plain",
     )
+    return text_file_name
 
 
 def docx_to_txt_filename(file_path: str) -> str:

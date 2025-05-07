@@ -16,7 +16,7 @@ from onyx.connectors.cross_connector_utils.miscellaneous_utils import time_str_t
 from onyx.connectors.exceptions import ConnectorValidationError
 from onyx.connectors.exceptions import CredentialExpiredError
 from onyx.connectors.exceptions import InsufficientPermissionsError
-from onyx.connectors.interfaces import CheckpointConnector
+from onyx.connectors.interfaces import CheckpointedConnector
 from onyx.connectors.interfaces import CheckpointOutput
 from onyx.connectors.interfaces import GenerateSlimDocumentOutput
 from onyx.connectors.interfaces import SecondsSinceUnixEpoch
@@ -134,7 +134,7 @@ def process_jira_issue(
     if labels := best_effort_get_field_from_issue(issue, "labels"):
         metadata_dict["labels"] = labels
 
-    metadata_dict[_FIELD_KEY] = issue.key
+    metadata_dict["key"] = issue.key
 
     return Document(
         id=page_url,
@@ -152,7 +152,7 @@ class JiraConnectorCheckpoint(ConnectorCheckpoint):
     offset: int | None = None
 
 
-class JiraConnector(CheckpointConnector[JiraConnectorCheckpoint], SlimConnector):
+class JiraConnector(CheckpointedConnector[JiraConnectorCheckpoint], SlimConnector):
     def __init__(
         self,
         jira_base_url: str,

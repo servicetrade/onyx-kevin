@@ -1,3 +1,4 @@
+import logging
 import sys
 import traceback
 from collections.abc import AsyncGenerator
@@ -16,9 +17,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from httpx_oauth.clients.google import GoogleOAuth2
+from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from sqlalchemy.orm import Session
+from starlette.types import Lifespan
 
 from onyx import __version__
 from onyx.auth.schemas import UserCreate
@@ -103,6 +106,8 @@ from onyx.server.utils import BasicAuthenticationError
 from onyx.setup import setup_multitenant_onyx
 from onyx.setup import setup_onyx
 from onyx.utils.logger import setup_logger
+from onyx.utils.logger import setup_uvicorn_logger
+from onyx.utils.middleware import add_onyx_request_id_middleware
 from onyx.utils.telemetry import get_or_generate_uuid
 from onyx.utils.telemetry import optional_telemetry
 from onyx.utils.telemetry import RecordType
@@ -116,6 +121,12 @@ from shared_configs.configs import SENTRY_DSN
 from shared_configs.contextvars import CURRENT_TENANT_ID_CONTEXTVAR
 
 logger = setup_logger()
+
+file_handlers = [
+    h for h in logger.logger.handlers if isinstance(h, logging.FileHandler)
+]
+
+setup_uvicorn_logger(shared_file_handlers=file_handlers)
 
 
 def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -266,8 +277,12 @@ def log_http_error(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
-def get_application() -> FastAPI:
-    application = FastAPI(title="Onyx Backend", version=__version__, lifespan=lifespan)
+def get_application(lifespan_override: Lifespan | None = None) -> FastAPI:
+    application = FastAPI(
+        title="Onyx Backend",
+        version=__version__,
+        lifespan=lifespan_override or lifespan,
+    )
     if SENTRY_DSN:
         sentry_sdk.init(
             dsn=SENTRY_DSN,
@@ -423,8 +438,13 @@ def get_application() -> FastAPI:
     if LOG_ENDPOINT_LATENCY:
         add_latency_logging_middleware(application, logger)
 
+    add_onyx_request_id_middleware(application, "API", logger)
+
     # Ensure all routes have auth enabled or are explicitly marked as public
     check_router_auth(application)
+
+    # Initialize and instrument the app
+    Instrumentator().instrument(application).expose(application)
 
     return application
 

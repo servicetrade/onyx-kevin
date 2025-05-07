@@ -398,7 +398,12 @@ class OnyxCeleryTask:
     CLOUD_MONITOR_CELERY_QUEUES = (
         f"{ONYX_CLOUD_CELERY_TASK_PREFIX}_monitor_celery_queues"
     )
-    CHECK_AVAILABLE_TENANTS = f"{ONYX_CLOUD_CELERY_TASK_PREFIX}_check_available_tenants"
+    CLOUD_CHECK_AVAILABLE_TENANTS = (
+        f"{ONYX_CLOUD_CELERY_TASK_PREFIX}_check_available_tenants"
+    )
+    CLOUD_MONITOR_CELERY_PIDBOX = (
+        f"{ONYX_CLOUD_CELERY_TASK_PREFIX}_monitor_celery_pidbox"
+    )
 
     # Tenant pre-provisioning
     PRE_PROVISION_TENANT = f"{ONYX_CLOUD_CELERY_TASK_PREFIX}_pre_provision_tenant"
@@ -420,6 +425,7 @@ class OnyxCeleryTask:
     MONITOR_BACKGROUND_PROCESSES = "monitor_background_processes"
     MONITOR_CELERY_QUEUES = "monitor_celery_queues"
     MONITOR_PROCESS_MEMORY = "monitor_process_memory"
+    CELERY_BEAT_HEARTBEAT = "celery_beat_heartbeat"
 
     KOMBU_MESSAGE_CLEANUP_TASK = "kombu_message_cleanup_task"
     CONNECTOR_PERMISSION_SYNC_GENERATOR_TASK = (
@@ -438,6 +444,9 @@ class OnyxCeleryTask:
     CHECK_TTL_MANAGEMENT_TASK = "check_ttl_management_task"
     AUTOGENERATE_USAGE_REPORT_TASK = "autogenerate_usage_report_task"
 
+
+# this needs to correspond to the matching entry in supervisord
+ONYX_CELERY_BEAT_HEARTBEAT_KEY = "onyx:celery:beat:heartbeat"
 
 REDIS_SOCKET_KEEPALIVE_OPTIONS = {}
 REDIS_SOCKET_KEEPALIVE_OPTIONS[socket.TCP_KEEPINTVL] = 15

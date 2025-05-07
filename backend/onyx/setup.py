@@ -96,7 +96,11 @@ def setup_onyx(
         )
 
         for cc_pair in get_connector_credential_pairs(db_session):
-            resync_cc_pair(cc_pair, db_session=db_session)
+            resync_cc_pair(
+                cc_pair=cc_pair,
+                search_settings_id=search_settings.id,
+                db_session=db_session,
+            )
 
     # Expire all old embedding models indexing attempts, technically redundant
     cancel_indexing_attempts_past_model(db_session)
@@ -145,9 +149,11 @@ def setup_onyx(
     success = setup_vespa(
         document_index,
         IndexingSetting.from_db_model(search_settings),
-        IndexingSetting.from_db_model(secondary_search_settings)
-        if secondary_search_settings
-        else None,
+        (
+            IndexingSetting.from_db_model(secondary_search_settings)
+            if secondary_search_settings
+            else None
+        ),
     )
     if not success:
         raise RuntimeError("Could not connect to Vespa within the specified timeout.")

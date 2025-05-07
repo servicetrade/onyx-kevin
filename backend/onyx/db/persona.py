@@ -37,8 +37,8 @@ from onyx.db.models import UserFile
 from onyx.db.models import UserFolder
 from onyx.db.models import UserGroup
 from onyx.db.notification import create_notification
+from onyx.server.features.persona.models import FullPersonaSnapshot
 from onyx.server.features.persona.models import PersonaSharedNotificationData
-from onyx.server.features.persona.models import PersonaSnapshot
 from onyx.server.features.persona.models import PersonaUpsertRequest
 from onyx.utils.logger import setup_logger
 from onyx.utils.variable_functionality import fetch_versioned_implementation
@@ -201,7 +201,7 @@ def create_update_persona(
     create_persona_request: PersonaUpsertRequest,
     user: User | None,
     db_session: Session,
-) -> PersonaSnapshot:
+) -> FullPersonaSnapshot:
     """Higher level function than upsert_persona, although either is valid to use."""
     # Permission to actually use these is checked later
 
@@ -271,7 +271,7 @@ def create_update_persona(
         logger.exception("Failed to create persona")
         raise HTTPException(status_code=400, detail=str(e))
 
-    return PersonaSnapshot.from_model(persona)
+    return FullPersonaSnapshot.from_model(persona)
 
 
 def update_persona_shared_users(
@@ -564,6 +564,7 @@ def upsert_persona(
             if is_default_persona is not None
             else existing_persona.is_default_persona
         )
+
         # Do not delete any associations manually added unless
         # a new updated list is provided
         if document_sets is not None:
@@ -623,9 +624,9 @@ def upsert_persona(
             display_priority=display_priority,
             is_visible=is_visible,
             search_start_date=search_start_date,
-            is_default_persona=is_default_persona
-            if is_default_persona is not None
-            else False,
+            is_default_persona=(
+                is_default_persona if is_default_persona is not None else False
+            ),
             user_folders=user_folders or [],
             user_files=user_files or [],
             labels=labels or [],

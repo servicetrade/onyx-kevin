@@ -59,6 +59,7 @@ def get_recent_completed_attempts_for_cc_pair(
     limit: int,
     db_session: Session,
 ) -> list[IndexAttempt]:
+    """Most recent to least recent."""
     return (
         db_session.query(IndexAttempt)
         .filter(
@@ -67,6 +68,25 @@ def get_recent_completed_attempts_for_cc_pair(
             IndexAttempt.status.notin_(
                 [IndexingStatus.NOT_STARTED, IndexingStatus.IN_PROGRESS]
             ),
+        )
+        .order_by(IndexAttempt.time_updated.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def get_recent_attempts_for_cc_pair(
+    cc_pair_id: int,
+    search_settings_id: int,
+    limit: int,
+    db_session: Session,
+) -> list[IndexAttempt]:
+    """Most recent to least recent."""
+    return (
+        db_session.query(IndexAttempt)
+        .filter(
+            IndexAttempt.connector_credential_pair_id == cc_pair_id,
+            IndexAttempt.search_settings_id == search_settings_id,
         )
         .order_by(IndexAttempt.time_updated.desc())
         .limit(limit)
@@ -705,6 +725,25 @@ def cancel_indexing_attempts_past_model(
             ),
             IndexAttempt.search_settings_id == SearchSettings.id,
             SearchSettings.status == IndexModelStatus.PAST,
+        )
+        .values(status=IndexingStatus.FAILED)
+    )
+
+
+def cancel_indexing_attempts_for_search_settings(
+    search_settings_id: int,
+    db_session: Session,
+) -> None:
+    """Stops all indexing attempts that are in progress or not started for
+    the specified search settings."""
+
+    db_session.execute(
+        update(IndexAttempt)
+        .where(
+            IndexAttempt.status.in_(
+                [IndexingStatus.IN_PROGRESS, IndexingStatus.NOT_STARTED]
+            ),
+            IndexAttempt.search_settings_id == search_settings_id,
         )
         .values(status=IndexingStatus.FAILED)
     )

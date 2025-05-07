@@ -26,7 +26,7 @@ from onyx.connectors.exceptions import ConnectorValidationError
 from onyx.connectors.exceptions import CredentialExpiredError
 from onyx.connectors.exceptions import InsufficientPermissionsError
 from onyx.connectors.exceptions import UnexpectedValidationError
-from onyx.connectors.interfaces import CheckpointConnector
+from onyx.connectors.interfaces import CheckpointedConnector
 from onyx.connectors.interfaces import CheckpointOutput
 from onyx.connectors.interfaces import CredentialsConnector
 from onyx.connectors.interfaces import CredentialsProviderInterface
@@ -255,7 +255,9 @@ _DISALLOWED_MSG_SUBTYPES = {
 def default_msg_filter(message: MessageType) -> bool:
     # Don't keep messages from bots
     if message.get("bot_id") or message.get("app_id"):
-        if message.get("bot_profile", {}).get("name") == "OnyxConnector":
+        bot_profile_name = message.get("bot_profile", {}).get("name")
+        print(f"bot_profile_name: {bot_profile_name}")
+        if bot_profile_name == "DanswerBot Testing":
             return False
         return True
 
@@ -499,7 +501,7 @@ def _process_message(
 
 
 class SlackConnector(
-    SlimConnector, CredentialsConnector, CheckpointConnector[SlackCheckpoint]
+    SlimConnector, CredentialsConnector, CheckpointedConnector[SlackCheckpoint]
 ):
     FAST_TIMEOUT = 1
 
