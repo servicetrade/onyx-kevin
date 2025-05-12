@@ -9,7 +9,6 @@ import {
 import {
   BackendChatSession,
   BackendMessage,
-  BUFFER_COUNT,
   ChatFileType,
   ChatSession,
   ChatSessionSharedStatus,
@@ -46,6 +45,7 @@ import {
   processRawChatHistory,
   removeMessage,
   sendMessage,
+  SendMessageParams,
   setMessageAsLatest,
   updateLlmOverrideForChatSession,
   updateParentChildren,
@@ -55,11 +55,9 @@ import {
 import {
   Dispatch,
   SetStateAction,
-  use,
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -92,13 +90,12 @@ import { buildFilters } from "@/lib/search/utils";
 import { SettingsContext } from "@/components/settings/SettingsProvider";
 import Dropzone from "react-dropzone";
 import {
-  checkLLMSupportsImageInput,
   getFinalLLM,
+  modelSupportsImageInput,
   structureValue,
 } from "@/lib/llm/utils";
 import { ChatInputBar } from "./input/ChatInputBar";
 import { useChatContext } from "@/components/context/ChatContext";
-import { v4 as uuidv4 } from "uuid";
 import { ChatPopup } from "./ChatPopup";
 import FunctionalHeader from "@/components/chat/Header";
 import { useSidebarVisibility } from "@/components/chat/hooks";
@@ -107,14 +104,8 @@ import {
   SIDEBAR_TOGGLED_COOKIE_NAME,
 } from "@/components/resizable/constants";
 import FixedLogo from "@/components/logo/FixedLogo";
-
 import ExceptionTraceModal from "@/components/modals/ExceptionTraceModal";
-
-import {
-  INTERNET_SEARCH_TOOL_ID,
-  SEARCH_TOOL_ID,
-  SEARCH_TOOL_NAME,
-} from "./tools/constants";
+import { SEARCH_TOOL_ID, SEARCH_TOOL_NAME } from "./tools/constants";
 import { useUser } from "@/components/user/UserProvider";
 import { ApiKeyModal } from "@/components/llm/ApiKeyModal";
 import BlurBackground from "../../components/chat/BlurBackground";
@@ -138,7 +129,6 @@ import { FilePickerModal } from "./my-documents/components/FilePicker";
 import { SourceMetadata } from "@/lib/search/interfaces";
 import { ValidSources } from "@/lib/types";
 import {
-  FileUploadResponse,
   FileResponse,
   FolderResponse,
   useDocumentsContext,
@@ -150,6 +140,11 @@ import MinimalMarkdown from "@/components/chat/MinimalMarkdown";
 const TEMP_USER_MESSAGE_ID = -1;
 const TEMP_ASSISTANT_MESSAGE_ID = -2;
 const SYSTEM_MESSAGE_ID = -3;
+
+export enum UploadIntent {
+  ATTACH_TO_MESSAGE, // For files uploaded via ChatInputBar (paste, drag/drop)
+  ADD_TO_DOCUMENTS, // For files uploaded via FilePickerModal or similar (just add to repo)
+}
 
 export function ChatPage({
   toggle,
@@ -186,12 +181,10 @@ export function ChatPage({
     selectedFolders,
     addSelectedFile,
     addSelectedFolder,
-    removeSelectedFolder,
     clearSelectedItems,
     folders: userFolders,
     files: allUserFiles,
     uploadFile,
-    removeSelectedFile,
     currentMessageFiles,
     setCurrentMessageFiles,
   } = useDocumentsContext();
@@ -232,7 +225,6 @@ export function ChatPage({
   const settings = useContext(SettingsContext);
   const enterpriseSettings = settings?.enterpriseSettings;
 
-  const [viewingFilePicker, setViewingFilePicker] = useState(false);
   const [toggleDocSelection, setToggleDocSelection] = useState(false);
   const [documentSidebarVisible, setDocumentSidebarVisible] = useState(false);
   const [proSearchEnabled, setProSearchEnabled] = useState(proSearchToggled);
@@ -646,7 +638,7 @@ export function ChatPage({
   }: {
     messages: Message[];
     // if calling this function repeatedly with short delay, stay may not update in time
-    // and result in weird behavipr
+    // and result in weird behavior
     completeMessageMapOverride?: Map<number, Message> | null;
     chatSessionId?: string;
     replacementsMap?: Map<number, number> | null;
@@ -714,6 +706,7 @@ export function ChatPage({
       chatSessionId || currentSessionId(),
       newCompleteMessageMap
     );
+    console.log(newCompleteMessageDetail);
     return newCompleteMessageDetail;
   };
 
@@ -1089,7 +1082,7 @@ export function ChatPage({
 
   async function updateCurrentMessageFIFO(
     stack: CurrentMessageFIFO,
-    params: any
+    params: SendMessageParams
   ) {
     try {
       for await (const packet of sendMessage(params)) {
@@ -1179,6 +1172,13 @@ export function ChatPage({
     };
   }, [autoScrollEnabled, screenHeight, currentSessionHasSentLocalUserMessage]);
 
+  const reset = () => {
+    setMessage("");
+    setCurrentMessageFiles([]);
+    clearSelectedItems();
+    setLoadingError(null);
+  };
+
   const onSubmit = async ({
     messageIdToResend,
     messageOverride,
@@ -1208,6 +1208,61 @@ export function ChatPage({
 
     // Mark that we've sent a message for this session in the current page load
     markSessionMessageSent(frozenSessionId);
+
+    // Check if the last message was an error and remove it before proceeding with a new message
+    // Ensure this isn't a regeneration or resend, as those operations should preserve the history leading up to the point of regeneration/resend.
+    let currentMap = currentMessageMap(completeMessageDetail);
+    let currentHistory = buildLatestMessageChain(currentMap);
+    let lastMessage = currentHistory[currentHistory.length - 1];
+
+    if (
+      lastMessage &&
+      lastMessage.type === "error" &&
+      !messageIdToResend &&
+      !regenerationRequest
+    ) {
+      const newMap = new Map(currentMap);
+      const parentId = lastMessage.parentMessageId;
+
+      // Remove the error message itself
+      newMap.delete(lastMessage.messageId);
+
+      // Remove the parent message + update the parent of the parent to no longer
+      // link to the parent
+      if (parentId !== null && parentId !== undefined) {
+        const parentOfError = newMap.get(parentId);
+        if (parentOfError) {
+          const grandparentId = parentOfError.parentMessageId;
+          if (grandparentId !== null && grandparentId !== undefined) {
+            const grandparent = newMap.get(grandparentId);
+            if (grandparent) {
+              // Update grandparent to no longer link to parent
+              const updatedGrandparent = {
+                ...grandparent,
+                childrenMessageIds: (
+                  grandparent.childrenMessageIds || []
+                ).filter((id) => id !== parentId),
+                latestChildMessageId:
+                  grandparent.latestChildMessageId === parentId
+                    ? null
+                    : grandparent.latestChildMessageId,
+              };
+              newMap.set(grandparentId, updatedGrandparent);
+            }
+          }
+          // Remove the parent message
+          newMap.delete(parentId);
+        }
+      }
+      // Update the state immediately so subsequent logic uses the cleaned map
+      updateCompleteMessageDetail(frozenSessionId, newMap);
+      console.log("Removed previous error message ID:", lastMessage.messageId);
+
+      // update state for the new world (with the error message removed)
+      currentHistory = buildLatestMessageChain(newMap);
+      currentMap = newMap;
+      lastMessage = currentHistory[currentHistory.length - 1];
+    }
 
     if (currentChatState() != "input") {
       if (currentChatState() == "uploading") {
@@ -1278,11 +1333,10 @@ export function ChatPage({
         currentSessionId()
       );
     }
-    const messageMap = currentMessageMap(completeMessageDetail);
     const messageToResendParent =
       messageToResend?.parentMessageId !== null &&
       messageToResend?.parentMessageId !== undefined
-        ? messageMap.get(messageToResend.parentMessageId)
+        ? currentMap.get(messageToResend.parentMessageId)
         : null;
     const messageToResendIndex = messageToResend
       ? messageHistory.indexOf(messageToResend)
@@ -1309,15 +1363,15 @@ export function ChatPage({
 
     const currMessageHistory =
       messageToResendIndex !== null
-        ? messageHistory.slice(0, messageToResendIndex)
-        : messageHistory;
+        ? currentHistory.slice(0, messageToResendIndex)
+        : currentHistory;
 
     let parentMessage =
       messageToResendParent ||
       (currMessageHistory.length > 0
         ? currMessageHistory[currMessageHistory.length - 1]
         : null) ||
-      (messageMap.size === 1 ? Array.from(messageMap.values())[0] : null);
+      (currentMap.size === 1 ? Array.from(currentMap.values())[0] : null);
 
     let currentAssistantId;
     if (alternativeAssistantOverride) {
@@ -1364,13 +1418,9 @@ export function ChatPage({
       frozenMessageMap: Map<number, Message>;
     } = null;
     try {
-      const mapKeys = Array.from(
-        currentMessageMap(completeMessageDetail).keys()
-      );
-      const systemMessage = Math.min(...mapKeys);
-
+      const mapKeys = Array.from(currentMap.keys());
       const lastSuccessfulMessageId =
-        getLastSuccessfulMessageId(currMessageHistory) || systemMessage;
+        getLastSuccessfulMessageId(currMessageHistory);
 
       const stack = new CurrentMessageFIFO();
 
@@ -1383,7 +1433,6 @@ export function ChatPage({
           regenerationRequest?.parentMessage.messageId ||
           lastSuccessfulMessageId,
         chatSessionId: currChatSessionId,
-        promptId: null,
         filters: buildFilters(
           filterManager.selectedSources,
           filterManager.selectedDocumentSets,
@@ -1488,11 +1537,12 @@ export function ChatPage({
               upsertToCompleteMessageMap({
                 messages: messageUpdates,
                 chatSessionId: currChatSessionId,
+                completeMessageMapOverride: currentMap,
               });
+            currentMap = currentFrozenMessageMap;
 
-            const frozenMessageMap = currentFrozenMessageMap;
             initialFetchDetails = {
-              frozenMessageMap,
+              frozenMessageMap: currentMap,
               assistant_message_id,
               user_message_id,
             };
@@ -1724,14 +1774,18 @@ export function ChatPage({
                   ] as [number, number][])
                 : null;
 
-              return upsertToCompleteMessageMap({
+              const newMessageDetails = upsertToCompleteMessageMap({
                 messages: messages,
                 replacementsMap: replacementsMap,
-                completeMessageMapOverride: frozenMessageMap,
+                // Pass the latest map state
+                completeMessageMapOverride: currentMap,
                 chatSessionId: frozenSessionId!,
               });
+              currentMap = newMessageDetails.messageMap;
+              return newMessageDetails;
             };
 
+            const systemMessageId = Math.min(...mapKeys);
             updateFn([
               {
                 messageId: regenerationRequest
@@ -1741,7 +1795,8 @@ export function ChatPage({
                 type: "user",
                 files: files,
                 toolCall: null,
-                parentMessageId: error ? null : lastSuccessfulMessageId,
+                // in the frontend, every message should have a parent ID
+                parentMessageId: lastSuccessfulMessageId ?? systemMessageId,
                 childrenMessageIds: [
                   ...(regenerationRequest?.parentMessage?.childrenMessageIds ||
                     []),
@@ -1795,7 +1850,7 @@ export function ChatPage({
     } catch (e: any) {
       console.log("Error:", e);
       const errorMsg = e.message;
-      upsertToCompleteMessageMap({
+      const newMessageDetails = upsertToCompleteMessageMap({
         messages: [
           {
             messageId:
@@ -1818,8 +1873,9 @@ export function ChatPage({
               initialFetchDetails?.user_message_id || TEMP_USER_MESSAGE_ID,
           },
         ],
-        completeMessageMapOverride: currentMessageMap(completeMessageDetail),
+        completeMessageMapOverride: currentMap,
       });
+      currentMap = newMessageDetails.messageMap;
     }
     console.log("Finished streaming");
     setAgenticGenerating(false);
@@ -1895,13 +1951,16 @@ export function ChatPage({
     }
   };
 
-  const handleImageUpload = async (acceptedFiles: File[]) => {
+  const handleImageUpload = async (
+    acceptedFiles: File[],
+    intent: UploadIntent
+  ) => {
     const [_, llmModel] = getFinalLLM(
       llmProviders,
       liveAssistant,
       llmManager.currentLlm
     );
-    const llmAcceptsImages = checkLLMSupportsImageInput(llmModel);
+    const llmAcceptsImages = modelSupportsImageInput(llmProviders, llmModel);
 
     const imageFiles = acceptedFiles.filter((file) =>
       file.type.startsWith("image/")
@@ -1918,15 +1977,41 @@ export function ChatPage({
 
     updateChatState("uploading", currentSessionId());
 
-    const [uploadedFiles, error] = await uploadFilesForChat(acceptedFiles);
-    if (error) {
-      setPopup({
-        type: "error",
-        message: error,
-      });
-    }
+    const newlyUploadedFileDescriptors: FileDescriptor[] = [];
 
-    setCurrentMessageFiles((prev) => [...prev, ...uploadedFiles]);
+    for (let file of acceptedFiles) {
+      const formData = new FormData();
+      formData.append("files", file);
+      const response: FileResponse[] = await uploadFile(formData, null);
+
+      if (response.length > 0) {
+        const uploadedFile = response[0];
+
+        if (intent == UploadIntent.ADD_TO_DOCUMENTS) {
+          addSelectedFile(uploadedFile);
+        } else {
+          const newFileDescriptor: FileDescriptor = {
+            // Use file_id (storage ID) if available, otherwise fallback to DB id
+            // Ensure it's a string as FileDescriptor expects
+            id: uploadedFile.file_id
+              ? String(uploadedFile.file_id)
+              : String(uploadedFile.id),
+            type: uploadedFile.chat_file_type
+              ? uploadedFile.chat_file_type
+              : ChatFileType.PLAIN_TEXT,
+            name: uploadedFile.name,
+            isUploading: false, // Mark as successfully uploaded
+          };
+
+          setCurrentMessageFiles((prev) => [...prev, newFileDescriptor]);
+        }
+      } else {
+        setPopup({
+          type: "error",
+          message: "Failed to upload file",
+        });
+      }
+    }
 
     updateChatState("input", currentSessionId());
   };
@@ -2405,7 +2490,7 @@ export function ChatPage({
                   liveAssistant={liveAssistant}
                   setShowAssistantsModal={setShowAssistantsModal}
                   explicitlyUntoggle={explicitlyUntoggle}
-                  reset={() => setMessage("")}
+                  reset={reset}
                   page="chat"
                   ref={innerSidebarElementRef}
                   toggleSidebar={toggleSidebar}
@@ -2525,7 +2610,12 @@ export function ChatPage({
               {documentSidebarInitialWidth !== undefined && isReady ? (
                 <Dropzone
                   key={currentSessionId()}
-                  onDrop={handleImageUpload}
+                  onDrop={(acceptedFiles) =>
+                    handleImageUpload(
+                      acceptedFiles,
+                      UploadIntent.ATTACH_TO_MESSAGE
+                    )
+                  }
                   noClick
                 >
                   {({ getRootProps }) => (
@@ -3303,7 +3393,7 @@ export function ChatPage({
                               : "w-[0px]"
                           }
                       `}
-                      ></div>
+                      />
                     </div>
                   )}
                 </Dropzone>

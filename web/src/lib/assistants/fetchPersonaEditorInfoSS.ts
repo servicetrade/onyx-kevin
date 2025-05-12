@@ -1,14 +1,11 @@
-import { FullPersona, Persona } from "@/app/admin/assistants/interfaces";
+import { FullPersona } from "@/app/admin/assistants/interfaces";
 import { CCPairBasicInfo, DocumentSet, User } from "../types";
 import { getCurrentUserSS } from "../userSS";
 import { fetchSS } from "../utilsSS";
-import {
-  LLMProviderView,
-  getProviderIcon,
-} from "@/app/admin/configuration/llm/interfaces";
+import { LLMProviderView } from "@/app/admin/configuration/llm/interfaces";
 import { ToolSnapshot } from "../tools/interfaces";
 import { fetchToolsSS } from "../tools/fetchTools";
-
+import { getProviderIcon } from "@/app/admin/configuration/llm/utils";
 export async function fetchAssistantEditorInfoSS(
   personaId?: number | string
 ): Promise<

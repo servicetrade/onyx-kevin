@@ -16,28 +16,28 @@ import { SettingsContext } from "@/components/settings/SettingsProvider";
 import { OnyxInitializingLoader } from "@/components/OnyxInitializingLoader";
 import { Persona } from "@/app/admin/assistants/interfaces";
 import { Button } from "@/components/ui/button";
-import { MinimalOnyxDocument, OnyxDocument } from "@/lib/search/interfaces";
+import { MinimalOnyxDocument } from "@/lib/search/interfaces";
 import TextView from "@/components/chat/TextView";
 import { DocumentResults } from "../../documentSidebar/DocumentResults";
 import { Modal } from "@/components/Modal";
 import FunctionalHeader from "@/components/chat/Header";
 import FixedLogo from "@/components/logo/FixedLogo";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 function BackToOnyxButton({
   documentSidebarVisible,
 }: {
   documentSidebarVisible: boolean;
 }) {
-  const router = useRouter();
   const enterpriseSettings = useContext(SettingsContext)?.enterpriseSettings;
 
   return (
     <div className="absolute bottom-0 bg-background w-full flex border-t border-border py-4">
       <div className="mx-auto">
-        <Button onClick={() => router.push("/chat")}>
-          Back to Chat
-        </Button>
+        <Link href="/chat">
+          Back to {enterpriseSettings?.application_name || "Chat"}
+        </Link>
       </div>
       <div
         style={{ transition: "width 0.30s ease-out" }}
