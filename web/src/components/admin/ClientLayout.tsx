@@ -215,6 +215,15 @@ const collections = (
               ),
               link: "/admin/users",
             },
+            {
+              name: (
+                <div className="flex">
+                  <FiBarChart2 className="text-text-700" size={18} />
+                  <div className="ml-1">Reports</div>
+                </div>
+              ),
+              link: "/admin/users/reports",
+            },
             ...(enableEnterprise
               ? [
                   {
@@ -281,15 +290,6 @@ const collections = (
                         },
                       ]
                     : []),
-                  {
-                    name: (
-                      <div className="flex">
-                        <FiBarChart2 className="text-text-700" size={18} />
-                        <div className="ml-1">Custom Analytics</div>
-                      </div>
-                    ),
-                    link: "/admin/performance/custom-analytics",
-                  },
                 ],
               },
             ]
