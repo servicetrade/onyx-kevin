@@ -10,7 +10,6 @@ export const config = {
     "/admin/performance/usage/:path*",
     "/admin/performance/query-history/:path*",
     "/admin/whitelabeling/:path*",
-    "/admin/performance/custom-analytics/:path*",
     "/admin/standard-answer/:path*",
     "/assistants/stats/:path*",
 
