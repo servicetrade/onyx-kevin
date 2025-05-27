@@ -281,22 +281,15 @@ const collections = (
                         },
                       ]
                     : []),
-                  ...(!enableCloud
-                    ? [
-                        {
-                          name: (
-                            <div className="flex">
-                              <FiBarChart2
-                                className="text-text-700"
-                                size={18}
-                              />
-                              <div className="ml-1">Custom Analytics</div>
-                            </div>
-                          ),
-                          link: "/admin/performance/custom-analytics",
-                        },
-                      ]
-                    : []),
+                  {
+                    name: (
+                      <div className="flex">
+                        <FiBarChart2 className="text-text-700" size={18} />
+                        <div className="ml-1">Custom Analytics</div>
+                      </div>
+                    ),
+                    link: "/admin/performance/custom-analytics",
+                  },
                 ],
               },
             ]
