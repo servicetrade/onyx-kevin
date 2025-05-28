@@ -8,7 +8,7 @@ Edition features outside of personal development or testing purposes. Please rea
 founders@onyx.app for more information. Please visit https://github.com/onyx-dot-app/onyx"
 
 # Default ONYX_VERSION, typically overriden during builds by GitHub Actions.
-ARG ONYX_VERSION=v0.27.0
+ARG ONYX_VERSION=v0.28.2
 # DO_NOT_TRACK is used to disable telemetry for Unstructured
 ENV ONYX_VERSION=${ONYX_VERSION} \
     DANSWER_RUNNING_IN_DOCKER="true" \
