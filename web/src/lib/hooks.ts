@@ -725,6 +725,7 @@ const MODEL_DISPLAY_NAMES: { [key: string]: string } = {
   "claude-3-5-sonnet-20240620": "Claude 3.5 Sonnet (June 2024)",
   "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
   "claude-3-7-sonnet-20250219": "Claude 3.7 Sonnet",
+  "claude-sonnet-4-5-20250929": "Claude Sonnet 4.5",
   "claude-3-5-sonnet-v2@20241022": "Claude 3.5 Sonnet",
   "claude-3.5-sonnet-v2@20241022": "Claude 3.5 Sonnet",
   "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
@@ -789,6 +790,8 @@ const MODEL_DISPLAY_NAMES: { [key: string]: string } = {
   "anthropic.claude-v2:1": "Claude v2.1",
   "anthropic.claude-v2": "Claude v2",
   "anthropic.claude-v1": "Claude v1",
+  "anthropic.claude-sonnet-4-5-20250929-v1:0": "Claude Sonnet 4.5",
+  "us.anthropic.claude-sonnet-4-5-20250929-v1:0": "Claude Sonnet 4.5",
   "anthropic.claude-3-7-sonnet-20250219-v1:0": "Claude 3.7 Sonnet",
   "us.anthropic.claude-3-7-sonnet-20250219-v1:0": "Claude 3.7 Sonnet",
   "anthropic.claude-3-opus-20240229-v1:0": "Claude 3 Opus",
@@ -834,6 +837,7 @@ export const defaultModelsByProvider: { [name: string]: string[] } = {
     "o3",
   ],
   bedrock: [
+    "anthropic.claude-sonnet-4-5-20250929-v1:0",
     "meta.llama3-1-70b-instruct-v1:0",
     "meta.llama3-1-8b-instruct-v1:0",
     "anthropic.claude-3-opus-20240229-v1:0",
@@ -841,5 +845,9 @@ export const defaultModelsByProvider: { [name: string]: string[] } = {
     "anthropic.claude-3-5-sonnet-20241022-v2:0",
     "anthropic.claude-3-7-sonnet-20250219-v1:0",
   ],
-  anthropic: ["claude-3-opus-20240229", "claude-3-5-sonnet-20241022"],
+  anthropic: [
+    "claude-sonnet-4-5-20250929",
+    "claude-3-opus-20240229",
+    "claude-3-5-sonnet-20241022",
+  ],
 };

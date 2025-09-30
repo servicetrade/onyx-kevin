@@ -95,9 +95,16 @@ ANTHROPIC_MODEL_NAMES = [
     for model in litellm.anthropic_models
     if model not in IGNORABLE_ANTHROPIC_MODELS
 ][::-1]
+# Ensure latest models are included even if litellm hasn't been updated yet
+if "claude-sonnet-4-5-20250929" not in ANTHROPIC_MODEL_NAMES:
+    ANTHROPIC_MODEL_NAMES.insert(0, "claude-sonnet-4-5-20250929")
+if "claude-3-7-sonnet-20250219" not in ANTHROPIC_MODEL_NAMES:
+    ANTHROPIC_MODEL_NAMES.insert(0, "claude-3-7-sonnet-20250219")
+
 ANTHROPIC_VISIBLE_MODEL_NAMES = [
-    "claude-3-5-sonnet-20241022",
+    "claude-sonnet-4-5-20250929",
     "claude-3-7-sonnet-20250219",
+    "claude-3-5-sonnet-20241022",
 ]
 
 AZURE_PROVIDER_NAME = "azure"
@@ -179,7 +186,7 @@ def fetch_available_well_known_llms() -> list[WellKnownLLMProviderDescriptor]:
             model_configurations=fetch_model_configurations_for_provider(
                 ANTHROPIC_PROVIDER_NAME
             ),
-            default_model="claude-3-7-sonnet-20250219",
+            default_model="claude-sonnet-4-5-20250929",
             default_fast_model="claude-3-5-sonnet-20241022",
         ),
         WellKnownLLMProviderDescriptor(
