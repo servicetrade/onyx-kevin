@@ -163,6 +163,7 @@ IGNORABLE_ANTHROPIC_MODELS = [
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 
 ANTHROPIC_VISIBLE_MODEL_NAMES = [
+    # Claude 4.x models (newest)
     "claude-opus-4-5-20251101",
     "claude-opus-4-1",
     "claude-opus-4-20250514",
@@ -170,7 +171,16 @@ ANTHROPIC_VISIBLE_MODEL_NAMES = [
     "claude-sonnet-4-5",
     "claude-sonnet-4-20250514",
     "claude-haiku-4-5",
+    # Claude 3.7 models
     "claude-3-7-sonnet-latest",
+    # Claude 3.5 models (still widely used)
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-sonnet-20240620",
+    "claude-3-5-haiku-20241022",
+    # Claude 3 models (still useful)
+    "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229",
+    "claude-3-haiku-20240307",
 ]
 
 AZURE_PROVIDER_NAME = "azure"
