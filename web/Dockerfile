@@ -163,7 +163,7 @@ ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
 
 # Default ONYX_VERSION, typically overriden during builds by GitHub Actions.
-ARG ONYX_VERSION=v0.28.2
+ARG ONYX_VERSION=v2.5.9
 ENV ONYX_VERSION=${ONYX_VERSION}
 
 # Note: Don't expose ports here, Compose will handle that for us if necessary.
