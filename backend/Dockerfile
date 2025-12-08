@@ -127,7 +127,7 @@ COPY --chown=onyx:onyx ./assets /app/assets
 ENV PYTHONPATH=/app
 
 # Default ONYX_VERSION, typically overriden during builds by GitHub Actions.
-ARG ONYX_VERSION=0.0.0-dev
+ARG ONYX_VERSION=v0.28.2
 ENV ONYX_VERSION=${ONYX_VERSION}
 
 # Default command which does nothing
