@@ -38,7 +38,11 @@ export default function Logo({ folded, className }: LogoProps) {
     [className, settings.enterpriseSettings?.use_custom_logo]
   );
 
-  return settings.enterpriseSettings?.application_name ? (
+  const applicationName = settings.enterpriseSettings?.application_name || "Kevin AI";
+
+  return folded ? (
+    <OnyxIcon size={FOLDED_SIZE} className={cn("flex-shrink-0", className)} />
+  ) : (
     <div className="flex flex-col">
       <div className="flex flex-row items-center gap-2">
         {logo}
@@ -47,7 +51,7 @@ export default function Logo({ folded, className }: LogoProps) {
           className={cn("line-clamp-1 truncate", folded && "invisible")}
           nowrap
         >
-          {settings.enterpriseSettings?.application_name}
+          {applicationName}
         </Text>
       </div>
       {!NEXT_PUBLIC_DO_NOT_USE_TOGGLE_OFF_DANSWER_POWERED && (
@@ -64,9 +68,5 @@ export default function Logo({ folded, className }: LogoProps) {
         </Text>
       )}
     </div>
-  ) : folded ? (
-    <OnyxIcon size={FOLDED_SIZE} className={cn("flex-shrink-0", className)} />
-  ) : (
-    <OnyxLogoTypeIcon size={UNFOLDED_SIZE} className={className} />
   );
 }
