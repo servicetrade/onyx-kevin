@@ -1,7 +1,5 @@
-# First, create a custom nginx.conf with the module loaded
+# First, create a custom nginx.conf
 cat > /etc/nginx/nginx.conf <<EOF
-load_module modules/ngx_http_headers_more_filter_module.so;
-
 user  nginx;
 worker_processes  auto;
 
