@@ -2,10 +2,15 @@ import { WebResultIcon } from "@/components/WebResultIcon";
 import { SourceIcon } from "@/components/SourceIcon";
 import { OnyxDocument } from "@/lib/search/interfaces";
 import { ValidSources } from "@/lib/types";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, JSX } from "react";
 import { SearchResultIcon } from "@/components/SearchResultIcon";
 import { getFileIconFromFileNameAndLink } from "@/lib/assistantIconUtils";
-import { FileResponse } from "@/app/chat/my-documents/DocumentsContext";
+// Minimal shape needed locally for file icon rendering
+type FileResponse = {
+  id: number;
+  name: string;
+  link_url?: string | null;
+};
 
 export const ResultIcon = ({
   doc,
@@ -100,12 +105,14 @@ export function getUniqueIcons(docs: OnyxDocument[]): JSX.Element[] {
   while (uniqueIcons.length < 3) {
     // The last icon in the array
     const lastIcon = uniqueIcons[uniqueIcons.length - 1];
-    // Clone it with a new key
-    uniqueIcons.push(
-      React.cloneElement(lastIcon, {
-        key: `${lastIcon.key}-dup-${uniqueIcons.length}`,
-      })
-    );
+    if (lastIcon) {
+      // Clone it with a new key
+      uniqueIcons.push(
+        React.cloneElement(lastIcon, {
+          key: `${lastIcon.key}-dup-${uniqueIcons.length}`,
+        })
+      );
+    }
   }
 
   // Slice to just the first 3 if there are more than 3
@@ -172,12 +179,14 @@ export function getUniqueFileIcons(files: FileResponse[]): JSX.Element[] {
   while (uniqueIcons.length < 3) {
     // The last icon in the array
     const lastIcon = uniqueIcons[uniqueIcons.length - 1];
-    // Clone it with a new key
-    uniqueIcons.push(
-      React.cloneElement(lastIcon, {
-        key: `${lastIcon.key}-dup-${uniqueIcons.length}`,
-      })
-    );
+    if (lastIcon) {
+      // Clone it with a new key
+      uniqueIcons.push(
+        React.cloneElement(lastIcon, {
+          key: `${lastIcon.key}-dup-${uniqueIcons.length}`,
+        })
+      );
+    }
   }
 
   // Slice to just the first 3 if there are more than 3

@@ -36,7 +36,7 @@ MAX_OR_CONDITIONS = 10
 # up from 500ms for now, since we've seen quite a few timeouts
 # in the long term, we are looking to improve the performance of Vespa
 # so that we can bring this back to default
-VESPA_TIMEOUT = "3s"
+VESPA_TIMEOUT = "10s"
 BATCH_SIZE = 128  # Specific to Vespa
 
 TENANT_ID = "tenant_id"
@@ -55,6 +55,7 @@ ACCESS_CONTROL_LIST = "access_control_list"
 DOCUMENT_SETS = "document_sets"
 USER_FILE = "user_file"
 USER_FOLDER = "user_folder"
+USER_PROJECT = "user_project"
 LARGE_CHUNK_REFERENCE_IDS = "large_chunk_reference_ids"
 METADATA = "metadata"
 METADATA_LIST = "metadata_list"
@@ -68,6 +69,7 @@ PRIMARY_OWNERS = "primary_owners"
 SECONDARY_OWNERS = "secondary_owners"
 RECENCY_BIAS = "recency_bias"
 HIDDEN = "hidden"
+# for legacy reasons, called `name` in Vespa despite it really being an ID
 IMAGE_FILE_NAME = "image_file_name"
 
 # Specific to Vespa, needed for highlighting matching keywords / section

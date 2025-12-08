@@ -4,13 +4,16 @@ import {
   DocumentCardProps,
 } from "@/components/search/results/Citation";
 import { LoadedOnyxDocument, OnyxDocument } from "@/lib/search/interfaces";
-import React, { memo } from "react";
+import React, { memo, JSX } from "react";
 import isEqual from "lodash/isEqual";
 import { SourceIcon } from "@/components/SourceIcon";
 import { WebResultIcon } from "@/components/WebResultIcon";
 import { SubQuestionDetail } from "../interfaces";
 import { ValidSources } from "@/lib/types";
-import { FileResponse } from "../my-documents/DocumentsContext";
+import { ProjectFile } from "../projects/projectsService";
+import { BlinkingDot } from "./BlinkingDot";
+import Text from "@/refresh-components/texts/Text";
+import { cn } from "@/lib/utils";
 
 export const MemoizedAnchor = memo(
   ({
@@ -25,7 +28,7 @@ export const MemoizedAnchor = memo(
     subQuestions?: SubQuestionDetail[];
     openQuestion?: (question: SubQuestionDetail) => void;
     docs?: OnyxDocument[] | null;
-    userFiles?: FileResponse[] | null;
+    userFiles?: ProjectFile[] | null;
     updatePresentingDocument: (doc: OnyxDocument) => void;
     href?: string;
     children: React.ReactNode;
@@ -34,77 +37,83 @@ export const MemoizedAnchor = memo(
     if (value?.startsWith("[") && value?.endsWith("]")) {
       const match = value.match(/\[(D|Q)?(\d+)\]/);
       if (match) {
-        const isUserFileCitation = userFiles?.length && userFiles.length > 0;
-        if (isUserFileCitation) {
-          const index = Math.min(
-            parseInt(match[2], 10) - 1,
-            userFiles?.length - 1
-          );
-          const associatedUserFile = userFiles?.[index];
-          if (!associatedUserFile) {
-            return <a href={children as string}>{children}</a>;
-          }
-        } else if (!isUserFileCitation) {
-          const index = parseInt(match[2], 10) - 1;
-          const associatedDoc = docs?.[index];
-          if (!associatedDoc) {
-            return <a href={children as string}>{children}</a>;
-          }
-        } else {
-          const index = parseInt(match[2], 10) - 1;
-          const associatedSubQuestion = subQuestions?.[index];
-          if (!associatedSubQuestion) {
-            return <a href={href || (children as string)}>{children}</a>;
+        const match_item = match[2];
+        if (match_item !== undefined) {
+          const isUserFileCitation = userFiles?.length && userFiles.length > 0;
+          if (isUserFileCitation) {
+            const index = Math.min(
+              parseInt(match_item, 10) - 1,
+              userFiles?.length - 1
+            );
+            const associatedUserFile = userFiles?.[index];
+            if (!associatedUserFile) {
+              return <a href={children as string}>{children}</a>;
+            }
+          } else if (!isUserFileCitation) {
+            const index = parseInt(match_item, 10) - 1;
+            const associatedDoc = docs?.[index];
+            if (!associatedDoc) {
+              return <a href={children as string}>{children}</a>;
+            }
+          } else {
+            const index = parseInt(match_item, 10) - 1;
+            const associatedSubQuestion = subQuestions?.[index];
+            if (!associatedSubQuestion) {
+              return <a href={href || (children as string)}>{children}</a>;
+            }
           }
         }
       }
 
       if (match) {
-        const isSubQuestion = match[1] === "Q";
-        const isDocument = !isSubQuestion;
+        const match_item = match[2];
+        if (match_item !== undefined) {
+          const isSubQuestion = match[1] === "Q";
+          const isDocument = !isSubQuestion;
 
-        // Fix: parseInt now uses match[2], which is the numeric part
-        const index = parseInt(match[2], 10) - 1;
+          // Fix: parseInt now uses match[2], which is the numeric part
+          const index = parseInt(match_item, 10) - 1;
 
-        const associatedDoc = isDocument ? docs?.[index] : null;
-        const associatedSubQuestion = isSubQuestion
-          ? subQuestions?.[index]
-          : undefined;
+          const associatedDoc = isDocument ? docs?.[index] : null;
+          const associatedSubQuestion = isSubQuestion
+            ? subQuestions?.[index]
+            : undefined;
 
-        if (!associatedDoc && !associatedSubQuestion) {
-          return <>{children}</>;
-        }
+          if (!associatedDoc && !associatedSubQuestion) {
+            return <>{children}</>;
+          }
 
-        let icon: React.ReactNode = null;
-        if (associatedDoc?.source_type === "web") {
-          icon = <WebResultIcon url={associatedDoc.link} />;
-        } else {
-          icon = (
-            <SourceIcon
-              sourceType={associatedDoc?.source_type as ValidSources}
-              iconSize={18}
-            />
+          let icon: React.ReactNode = null;
+          if (associatedDoc?.source_type === "web") {
+            icon = <WebResultIcon url={associatedDoc.link} />;
+          } else {
+            icon = (
+              <SourceIcon
+                sourceType={associatedDoc?.source_type as ValidSources}
+                iconSize={18}
+              />
+            );
+          }
+          const associatedDocInfo = associatedDoc
+            ? {
+                ...associatedDoc,
+                icon: icon as any,
+                link: associatedDoc.link,
+              }
+            : undefined;
+
+          return (
+            <MemoizedLink
+              updatePresentingDocument={updatePresentingDocument}
+              href={href}
+              document={associatedDocInfo}
+              question={associatedSubQuestion}
+              openQuestion={openQuestion}
+            >
+              {children}
+            </MemoizedLink>
           );
         }
-        const associatedDocInfo = associatedDoc
-          ? {
-              ...associatedDoc,
-              icon: icon as any,
-              link: associatedDoc.link,
-            }
-          : undefined;
-
-        return (
-          <MemoizedLink
-            updatePresentingDocument={updatePresentingDocument}
-            href={href}
-            document={associatedDocInfo}
-            question={associatedSubQuestion}
-            openQuestion={openQuestion}
-          >
-            {children}
-          </MemoizedLink>
-        );
       }
     }
     return (
@@ -144,16 +153,13 @@ export const MemoizedLink = memo(
       document && updatePresentingDocument
         ? {
             url: document.link,
-            icon: document.icon as unknown as React.ReactNode,
             document: document as LoadedOnyxDocument,
             updatePresentingDocument: updatePresentingDocument!,
           }
         : undefined;
 
     if (value?.toString().startsWith("*")) {
-      return (
-        <div className="flex-none bg-background-800 inline-block rounded-full h-3 w-3 ml-2" />
-      );
+      return <BlinkingDot addMargin />;
     } else if (value?.toString().startsWith("[")) {
       return (
         <>
@@ -197,15 +203,11 @@ export const MemoizedLink = memo(
 );
 
 export const MemoizedParagraph = memo(
-  function MemoizedParagraph({ children, fontSize }: any) {
+  function MemoizedParagraph({ className, children }: any) {
     return (
-      <p
-        className={`text-neutral-900 dark:text-neutral-200 my-0 ${
-          fontSize === "sm" ? "leading-tight text-sm" : ""
-        }`}
-      >
+      <Text mainContentBody className={className}>
         {children}
-      </p>
+      </Text>
     );
   },
   (prevProps, nextProps) => {

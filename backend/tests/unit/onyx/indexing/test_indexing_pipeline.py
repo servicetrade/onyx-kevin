@@ -172,7 +172,7 @@ def create_test_chunk(
         large_chunk_reference_ids=[],
         embeddings=ChunkEmbedding(full_embedding=[], mini_chunk_embeddings=[]),
         title_embedding=None,
-        image_file_name=None,
+        image_file_id=None,
         chunk_context="",
         doc_summary="",
         contextual_rag_reserved_tokens=200,
@@ -306,7 +306,7 @@ def test_contextual_rag(
     mock_llm.config.max_input_tokens = get_max_input_tokens(
         model_provider="openai", model_name="gtp-4o"
     )
-    mock_llm.invoke = mock_llm_invoke
+    mock_llm.invoke_langchain = mock_llm_invoke
 
     chunker = Chunker(
         tokenizer=embedder.embedding_model.tokenizer,

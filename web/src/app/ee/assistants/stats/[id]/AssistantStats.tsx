@@ -3,11 +3,11 @@ import { ThreeDotsLoader } from "@/components/Loading";
 import { getDatesList } from "@/app/ee/admin/performance/lib";
 import { useEffect, useState, useMemo } from "react";
 import {
-  DateRangeSelector,
+  AdminDateRangeSelector,
   DateRange,
-} from "@/app/ee/admin/performance/DateRangeSelector";
-import { useAssistants } from "@/components/context/AssistantsContext";
-import { AssistantIcon } from "@/components/assistants/AssistantIcon";
+} from "@/components/dateRangeSelectors/AdminDateRangeSelector";
+import { useAgentsContext } from "@/refresh-components/contexts/AgentsContext";
+import AssistantIcon from "@/refresh-components/AgentIcon";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { AreaChartDisplay } from "@/components/ui/areaChart";
 
@@ -26,7 +26,7 @@ type AssistantStatsResponse = {
 export function AssistantStats({ assistantId }: { assistantId: number }) {
   const [assistantStats, setAssistantStats] =
     useState<AssistantStatsResponse | null>(null);
-  const { assistants } = useAssistants();
+  const { agents: assistants } = useAgentsContext();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -146,20 +146,17 @@ export function AssistantStats({ assistantId }: { assistantId: number }) {
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <p className="text-base font-normal text-2xl">Assistant Analytics</p>
-        <DateRangeSelector value={dateRange} onValueChange={setDateRange} />
+        <AdminDateRangeSelector
+          value={dateRange}
+          onValueChange={setDateRange}
+        />
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center space-x-4">
-                {assistant && (
-                  <AssistantIcon
-                    disableToolip
-                    size="large"
-                    assistant={assistant}
-                  />
-                )}
+                {assistant && <AssistantIcon agent={assistant} />}
                 <div>
                   <h3 className="text-lg font-normal">{assistant?.name}</h3>
                   <p className="text-sm text-text-500">

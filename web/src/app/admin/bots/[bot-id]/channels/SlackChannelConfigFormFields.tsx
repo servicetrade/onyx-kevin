@@ -2,16 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { FieldArray, useFormikContext, ErrorMessage, Field } from "formik";
-import { CCPairDescriptor, DocumentSet } from "@/lib/types";
+import { CCPairDescriptor, DocumentSetSummary } from "@/lib/types";
 import {
   Label,
   SelectorFormField,
   SubLabel,
   TextArrayField,
   TextFormField,
-} from "@/components/admin/connectors/Field";
-import { Button } from "@/components/ui/button";
-import { Persona } from "@/app/admin/assistants/interfaces";
+} from "@/components/Field";
+import Button from "@/refresh-components/buttons/Button";
+import { MinimalPersonaSnapshot } from "@/app/admin/assistants/interfaces";
 import { DocumentSetSelectable } from "@/components/documentSet/DocumentSetSelectable";
 import CollapsibleSection from "@/app/admin/assistants/CollapsibleSection";
 import { StandardAnswerCategoryResponse } from "@/components/standardAnswers/getStandardAnswerCategoriesIfEE";
@@ -28,28 +28,24 @@ import {
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { SourceIcon } from "@/components/SourceIcon";
 import Link from "next/link";
-import { AssistantIcon } from "@/components/assistants/AssistantIcon";
-import { SearchMultiSelectDropdown } from "@/components/Dropdown";
-import { fetchSlackChannels } from "../lib";
+import AgentIcon from "@/refresh-components/AgentIcon";
 import { Badge } from "@/components/ui/badge";
-import useSWR from "swr";
-import { ThreeDotsLoader } from "@/components/Loading";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Separator } from "@/components/ui/separator";
+import Separator from "@/refresh-components/Separator";
 
-import { CheckFormField } from "@/components/ui/CheckField";
+import { CheckboxField as CheckFormField } from "@/refresh-components/formik-fields/CheckboxField";
 
 export interface SlackChannelConfigFormFieldsProps {
   isUpdate: boolean;
   isDefault: boolean;
-  documentSets: DocumentSet[];
-  searchEnabledAssistants: Persona[];
-  nonSearchAssistants: Persona[];
+  documentSets: DocumentSetSummary[];
+  searchEnabledAssistants: MinimalPersonaSnapshot[];
+  nonSearchAssistants: MinimalPersonaSnapshot[];
   standardAnswerCategoryResponse: StandardAnswerCategoryResponse;
   setPopup: (popup: {
     message: string;
@@ -76,14 +72,28 @@ export function SlackChannelConfigFormFields({
   const [viewSyncEnabledAssistants, setViewSyncEnabledAssistants] =
     useState(false);
 
-  const documentSetContainsSync = (documentSet: DocumentSet) =>
-    documentSet.cc_pair_descriptors.some(
-      (descriptor) => descriptor.access_type === "sync"
+  // Helper function to check if a document set contains sync connectors
+  const documentSetContainsSync = (documentSet: DocumentSetSummary) => {
+    return documentSet.cc_pair_summaries.some(
+      (summary) => summary.access_type === "sync"
     );
+  };
+
+  // Helper function to check if a document set contains private connectors
+  const documentSetContainsPrivate = (documentSet: DocumentSetSummary) => {
+    return documentSet.cc_pair_summaries.some(
+      (summary) => summary.access_type === "private"
+    );
+  };
+
+  // Helper function to get cc_pair_summaries from DocumentSetSummary
+  const getCcPairSummaries = (documentSet: DocumentSetSummary) => {
+    return documentSet.cc_pair_summaries;
+  };
 
   const [syncEnabledAssistants, availableAssistants] = useMemo(() => {
-    const sync: Persona[] = [];
-    const available: Persona[] = [];
+    const sync: MinimalPersonaSnapshot[] = [];
+    const available: MinimalPersonaSnapshot[] = [];
 
     searchEnabledAssistants.forEach((persona) => {
       const hasSyncSet = persona.document_sets.some(documentSetContainsSync);
@@ -98,25 +108,27 @@ export function SlackChannelConfigFormFields({
   }, [searchEnabledAssistants]);
 
   const unselectableSets = useMemo(() => {
-    return documentSets.filter((ds) =>
-      ds.cc_pair_descriptors.some(
-        (descriptor) => descriptor.access_type === "sync"
-      )
-    );
+    return documentSets.filter(documentSetContainsSync);
   }, [documentSets]);
+
   const memoizedPrivateConnectors = useMemo(() => {
     const uniqueDescriptors = new Map();
-    documentSets.forEach((ds) => {
-      ds.cc_pair_descriptors.forEach((descriptor) => {
+    documentSets.forEach((ds: DocumentSetSummary) => {
+      const ccPairSummaries = getCcPairSummaries(ds);
+      ccPairSummaries.forEach((summary: any) => {
         if (
-          descriptor.access_type === "private" &&
-          !uniqueDescriptors.has(descriptor.id)
+          summary.access_type === "private" &&
+          !uniqueDescriptors.has(summary.id)
         ) {
-          uniqueDescriptors.set(descriptor.id, descriptor);
+          uniqueDescriptors.set(summary.id, summary);
         }
       });
     });
     return Array.from(uniqueDescriptors.values());
+  }, [documentSets]);
+
+  const selectableSets = useMemo(() => {
+    return documentSets.filter((ds) => !documentSetContainsSync(ds));
   }, [documentSets]);
 
   useEffect(() => {
@@ -138,12 +150,6 @@ export function SlackChannelConfigFormFields({
     }
   }, [unselectableSets, values.document_sets, setFieldValue, setPopup]);
 
-  const documentSetContainsPrivate = (documentSet: DocumentSet) => {
-    return documentSet.cc_pair_descriptors.some(
-      (descriptor) => descriptor.access_type === "private"
-    );
-  };
-
   const shouldShowPrivacyAlert = useMemo(() => {
     if (values.knowledge_source === "document_sets") {
       const selectedSets = documentSets.filter((ds) =>
@@ -162,57 +168,6 @@ export function SlackChannelConfigFormFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values.knowledge_source, values.document_sets, values.persona_id]);
 
-  const selectableSets = useMemo(() => {
-    return documentSets.filter(
-      (ds) =>
-        !ds.cc_pair_descriptors.some(
-          (descriptor) => descriptor.access_type === "sync"
-        )
-    );
-  }, [documentSets]);
-
-  const {
-    data: channelOptions,
-    error,
-    isLoading,
-  } = useSWR(
-    `/api/manage/admin/slack-app/bots/${slack_bot_id}/channels`,
-    async () => {
-      const channels = await fetchSlackChannels(slack_bot_id);
-      return channels.map((channel: any) => ({
-        name: channel.name,
-        value: channel.id,
-      }));
-    },
-    {
-      shouldRetryOnError: false, // don't spam the Slack API
-      dedupingInterval: 60000, // Limit re-fetching to once per minute
-    }
-  );
-
-  // Define the helper text based on the state
-  const channelHelperText = useMemo(() => {
-    if (isLoading || error) {
-      // No helper text needed during loading or if there's an error
-      // (error message is shown separately)
-      return null;
-    }
-    if (!channelOptions || channelOptions.length === 0) {
-      return "No channels found. You can type any channel name in directly.";
-    }
-
-    let helpText = `Select a channel from the dropdown list or type any channel name in directly.`;
-    if (channelOptions.length >= 500) {
-      return `${helpText} (Retrieved the first ${channelOptions.length} channels.)`;
-    }
-
-    return helpText;
-  }, [isLoading, error, channelOptions]);
-
-  if (isLoading) {
-    return <ThreeDotsLoader />;
-  }
-
   return (
     <>
       <div className="w-full">
@@ -221,68 +176,32 @@ export function SlackChannelConfigFormFields({
             <Badge variant="agent" className="bg-blue-100 text-blue-800">
               Default Configuration
             </Badge>
-            <p className="mt-2 text-sm text-neutral-600">
-              This default configuration will apply across all Slack channels
-              the bot is added to in the Slack workspace, as well as direct
-              messages (DMs), unless disabled.
+            <p className="mt-2 text-sm">
+              This default configuration will apply to all channels and direct
+              messages (DMs) in your Slack workspace.
             </p>
-            <div className="mt-4 p-4 bg-neutral-100 rounded-md border border-neutral-300">
+            <div className="mt-4 p-4 bg-background rounded-md border border-neutral-300">
               <CheckFormField
                 name="disabled"
                 label="Disable Default Configuration"
+                labelClassName="text-text"
               />
-              <p className="mt-2 text-sm text-neutral-600 italic">
-                Warning: Disabling the default configuration means the bot
-                won&apos;t respond in Slack channels or DMs unless explicitly
-                configured for them.
+              <p className="mt-2 text-sm italic">
+                Warning: Disabling the default configuration means OnyxBot
+                won&apos;t respond in Slack channels unless they are explicitly
+                configured. Additionally, OnyxBot will not respond to DMs.
               </p>
             </div>
           </>
         )}
         {!isDefault && (
           <>
-            <label
-              htmlFor="channel_name"
-              className="block  text-text font-medium text-base mb-2"
-            >
-              Select A Slack Channel:
-            </label>{" "}
-            {error ? (
-              <div>
-                <div className="text-red-600 text-sm mb-4">
-                  {error.message || "Unable to fetch Slack channels."}
-                  {" Please enter the channel name manually."}
-                </div>
-                <TextFormField
-                  name="channel_name"
-                  label="Channel Name"
-                  placeholder="Enter channel name"
-                />
-              </div>
-            ) : (
-              <>
-                <Field name="channel_name">
-                  {({ field, form }: { field: any; form: any }) => (
-                    <SearchMultiSelectDropdown
-                      options={channelOptions || []}
-                      onSelect={(selected) => {
-                        form.setFieldValue("channel_name", selected.name);
-                      }}
-                      initialSearchTerm={field.value}
-                      onSearchTermChange={(term) => {
-                        form.setFieldValue("channel_name", term);
-                      }}
-                      allowCustomValues={true}
-                    />
-                  )}
-                </Field>
-                {channelHelperText && (
-                  <p className="mt-2 text-sm dark:text-neutral-400 text-neutral-600">
-                    {channelHelperText}
-                  </p>
-                )}
-              </>
-            )}
+            <TextFormField
+              name="channel_name"
+              label="Slack Channel Name"
+              placeholder="Enter channel name (e.g., general, support)"
+              subtext="Enter the name of the Slack channel (without the # symbol)"
+            />
           </>
         )}
         <div className="space-y-2 mt-4">
@@ -341,7 +260,7 @@ export function SlackChannelConfigFormFields({
                             (viewUnselectableSets) => !viewUnselectableSets
                           )
                         }
-                        className="text-sm text-link"
+                        className="text-sm text-action-link-05"
                       >
                         {viewUnselectableSets
                           ? "Hide un-selectable "
@@ -435,7 +354,7 @@ export function SlackChannelConfigFormFields({
                               !viewSyncEnabledAssistants
                           )
                         }
-                        className="text-sm text-link"
+                        className="text-sm text-action-link-05"
                       >
                         {viewSyncEnabledAssistants
                           ? "Hide un-selectable "
@@ -461,23 +380,21 @@ export function SlackChannelConfigFormFields({
                   Un-selectable assistants:
                 </p>
                 <div className="mb-3 mt-2 flex gap-2 flex-wrap text-sm">
-                  {syncEnabledAssistants.map((persona: Persona) => (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(`/admin/assistants/${persona.id}`)
-                      }
-                      key={persona.id}
-                      className="p-2 bg-background-100 cursor-pointer rounded-md flex items-center gap-2"
-                    >
-                      <AssistantIcon
-                        assistant={persona}
-                        size={16}
-                        className="flex-none"
-                      />
-                      {persona.name}
-                    </button>
-                  ))}
+                  {syncEnabledAssistants.map(
+                    (persona: MinimalPersonaSnapshot) => (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(`/admin/assistants/${persona.id}`)
+                        }
+                        key={persona.id}
+                        className="p-2 bg-background-100 cursor-pointer rounded-md flex items-center gap-2"
+                      >
+                        <AgentIcon agent={persona} size={16} />
+                        {persona.name}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             )}
@@ -504,7 +421,7 @@ export function SlackChannelConfigFormFields({
                               !viewSyncEnabledAssistants
                           )
                         }
-                        className="text-sm text-link"
+                        className="text-sm text-action-link-05"
                       >
                         {viewSyncEnabledAssistants
                           ? "Hide un-selectable "
@@ -528,7 +445,7 @@ export function SlackChannelConfigFormFields({
         )}
       </div>
       <Separator className="my-4" />
-      <Accordion type="multiple" className=" gap-y-2 w-full">
+      <Accordion type="multiple" className="gap-y-2 w-full">
         {values.knowledge_source !== "non_search_assistant" && (
           <AccordionItem value="search-options">
             <AccordionTrigger className="text-text">
@@ -565,7 +482,7 @@ export function SlackChannelConfigFormFields({
 
         <AccordionItem className="mt-4" value="general-options">
           <AccordionTrigger>General Configuration</AccordionTrigger>
-          <AccordionContent>
+          <AccordionContent className="overflow-visible">
             <div className="space-y-4">
               <CheckFormField
                 name="show_continue_in_web_ui"
@@ -582,7 +499,7 @@ export function SlackChannelConfigFormFields({
                   }
                 }}
                 label={'Give a "Still need help?" button'}
-                tooltip={`OnyxBot's response will include a button at the bottom 
+                tooltip={`OnyxBot's response will include a button at the bottom
                       of the response that asks the user if they still need help.`}
               />
               {values.still_need_help_enabled && (
@@ -622,8 +539,8 @@ export function SlackChannelConfigFormFields({
               <CheckFormField
                 name="is_ephemeral"
                 label="Respond to user in a private (ephemeral) message"
-                tooltip="If set, OnyxBot will respond only to the user in a private (ephemeral) message. If you also 
-                chose 'Search' Assistant above, selecting this option will make documents that are private to the user 
+                tooltip="If set, OnyxBot will respond only to the user in a private (ephemeral) message. If you also
+                chose 'Search' Assistant above, selecting this option will make documents that are private to the user
                 available for their queries."
               />
 
@@ -659,7 +576,7 @@ export function SlackChannelConfigFormFields({
                   <AlertCircle className="h-5 w-5 text-alert" />
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="top" className="bg-white p-4 w-80">
+              <TooltipContent side="top" className="bg-background p-4 w-80">
                 <Label className="text-text mb-2 font-semibold">
                   Privacy Alert
                 </Label>
@@ -678,25 +595,23 @@ export function SlackChannelConfigFormFields({
                     Relevant Connectors:
                   </h4>
                   <div className="max-h-40 overflow-y-auto border-t border-text-subtle flex-col gap-y-2">
-                    {memoizedPrivateConnectors.map(
-                      (ccpairinfo: CCPairDescriptor<any, any>) => (
-                        <Link
-                          key={ccpairinfo.id}
-                          href={`/admin/connector/${ccpairinfo.id}`}
-                          className="flex items-center p-2 rounded-md hover:bg-background-100 transition-colors"
-                        >
-                          <div className="mr-2">
-                            <SourceIcon
-                              iconSize={16}
-                              sourceType={ccpairinfo.connector.source}
-                            />
-                          </div>
-                          <span className="text-sm text-text-darker font-medium">
-                            {ccpairinfo.name}
-                          </span>
-                        </Link>
-                      )
-                    )}
+                    {memoizedPrivateConnectors.map((ccpairinfo: any) => (
+                      <Link
+                        key={ccpairinfo.id}
+                        href={`/admin/connector/${ccpairinfo.id}`}
+                        className="flex items-center p-2 rounded-md hover:bg-background-100 transition-colors"
+                      >
+                        <div className="mr-2">
+                          <SourceIcon
+                            iconSize={16}
+                            sourceType={ccpairinfo.source}
+                          />
+                        </div>
+                        <span className="text-sm text-text-darker font-medium">
+                          {ccpairinfo.name}
+                        </span>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               </TooltipContent>
@@ -704,7 +619,7 @@ export function SlackChannelConfigFormFields({
           </TooltipProvider>
         )}
         <Button type="submit">{isUpdate ? "Update" : "Create"}</Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+        <Button secondary onClick={() => router.back()}>
           Cancel
         </Button>
       </div>

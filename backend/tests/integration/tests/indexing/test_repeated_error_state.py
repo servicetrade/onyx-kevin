@@ -3,14 +3,15 @@ import uuid
 
 import httpx
 
-from onyx.background.celery.tasks.indexing.utils import (
+from onyx.background.celery.tasks.docprocessing.utils import (
     NUM_REPEAT_ERRORS_BEFORE_REPEATED_ERROR_STATE,
 )
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.mock_connector.connector import MockConnectorCheckpoint
 from onyx.connectors.models import InputType
 from onyx.db.connector_credential_pair import get_connector_credential_pair_from_id
-from onyx.db.engine import get_session_context_manager
+from onyx.db.engine.sql_engine import get_session_with_current_tenant
+from onyx.db.enums import ConnectorCredentialPairStatus
 from onyx.db.enums import IndexingStatus
 from tests.integration.common_utils.constants import MOCK_CONNECTOR_SERVER_HOST
 from tests.integration.common_utils.constants import MOCK_CONNECTOR_SERVER_PORT
@@ -86,7 +87,7 @@ def test_repeated_error_state_detection_and_recovery(
             for ia in index_attempts_page.items
             if ia.status and ia.status.is_terminal()
         ]
-        if len(index_attempts) == NUM_REPEAT_ERRORS_BEFORE_REPEATED_ERROR_STATE:
+        if len(index_attempts) >= NUM_REPEAT_ERRORS_BEFORE_REPEATED_ERROR_STATE:
             break
 
         if time.monotonic() - start_time > 180:
@@ -96,7 +97,7 @@ def test_repeated_error_state_detection_and_recovery(
 
         # make sure that we don't mark the connector as in repeated error state
         # before we have the required number of failed attempts
-        with get_session_context_manager() as db_session:
+        with get_session_with_current_tenant() as db_session:
             cc_pair_obj = get_connector_credential_pair_from_id(
                 db_session=db_session,
                 cc_pair_id=cc_pair.id,
@@ -114,13 +115,18 @@ def test_repeated_error_state_detection_and_recovery(
     # Check if the connector is in a repeated error state
     start_time = time.monotonic()
     while True:
-        with get_session_context_manager() as db_session:
+        with get_session_with_current_tenant() as db_session:
             cc_pair_obj = get_connector_credential_pair_from_id(
                 db_session=db_session,
                 cc_pair_id=cc_pair.id,
             )
             assert cc_pair_obj is not None
             if cc_pair_obj.in_repeated_error_state:
+                # Verify the connector is also paused to prevent further indexing attempts
+                assert cc_pair_obj.status == ConnectorCredentialPairStatus.PAUSED, (
+                    f"Expected status to be PAUSED when in repeated error state, "
+                    f"but got {cc_pair_obj.status}"
+                )
                 break
 
         if time.monotonic() - start_time > 30:
@@ -145,10 +151,13 @@ def test_repeated_error_state_detection_and_recovery(
     )
     assert response.status_code == 200
 
-    # Run another indexing attempt that should succeed
+    # Set the manual indexing trigger first (while paused), then unpause.
+    # This ensures the trigger is set before CHECK_FOR_INDEXING runs, which will
+    # prevent the connector from being re-paused when repeated error state is detected.
     CCPairManager.run_once(
         cc_pair, from_beginning=True, user_performing_action=admin_user
     )
+    CCPairManager.unpause_cc_pair(cc_pair, user_performing_action=admin_user)
 
     recovery_index_attempt = IndexAttemptManager.wait_for_index_attempt_start(
         cc_pair_id=cc_pair.id,
@@ -171,7 +180,7 @@ def test_repeated_error_state_detection_and_recovery(
     assert finished_recovery_attempt.status == IndexingStatus.SUCCESS
 
     # Verify the document was indexed
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         documents = DocumentManager.fetch_documents_for_cc_pair(
             cc_pair_id=cc_pair.id,
             db_session=db_session,
@@ -183,7 +192,7 @@ def test_repeated_error_state_detection_and_recovery(
     # Verify the CC pair is no longer in a repeated error state
     start = time.monotonic()
     while True:
-        with get_session_context_manager() as db_session:
+        with get_session_with_current_tenant() as db_session:
             cc_pair_obj = get_connector_credential_pair_from_id(
                 db_session=db_session,
                 cc_pair_id=cc_pair.id,

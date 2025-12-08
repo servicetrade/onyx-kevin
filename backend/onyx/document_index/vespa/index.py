@@ -18,6 +18,7 @@ from uuid import UUID
 import httpx  # type: ignore
 import jinja2
 import requests  # type: ignore
+from pydantic import BaseModel
 from retry import retry
 
 from onyx.agents.agent_search.shared_graph_utils.models import QueryExpansionType
@@ -30,6 +31,7 @@ from onyx.context.search.models import IndexFilters
 from onyx.context.search.models import InferenceChunkUncleaned
 from onyx.db.enums import EmbeddingPrecision
 from onyx.document_index.document_index_utils import get_document_chunk_ids
+from onyx.document_index.document_index_utils import get_uuid_from_chunk_info
 from onyx.document_index.interfaces import DocumentIndex
 from onyx.document_index.interfaces import DocumentInsertionRecord
 from onyx.document_index.interfaces import EnrichedDocumentIndexingInfo
@@ -62,17 +64,18 @@ from onyx.document_index.vespa_constants import ACCESS_CONTROL_LIST
 from onyx.document_index.vespa_constants import BATCH_SIZE
 from onyx.document_index.vespa_constants import BOOST
 from onyx.document_index.vespa_constants import CONTENT_SUMMARY
+from onyx.document_index.vespa_constants import DOCUMENT_ID
 from onyx.document_index.vespa_constants import DOCUMENT_ID_ENDPOINT
 from onyx.document_index.vespa_constants import DOCUMENT_SETS
 from onyx.document_index.vespa_constants import HIDDEN
 from onyx.document_index.vespa_constants import NUM_THREADS
-from onyx.document_index.vespa_constants import USER_FILE
-from onyx.document_index.vespa_constants import USER_FOLDER
+from onyx.document_index.vespa_constants import USER_PROJECT
 from onyx.document_index.vespa_constants import VESPA_APPLICATION_ENDPOINT
 from onyx.document_index.vespa_constants import VESPA_TIMEOUT
 from onyx.document_index.vespa_constants import YQL_BASE
 from onyx.indexing.models import DocMetadataAwareIndexChunk
 from onyx.key_value_store.factory import get_shared_kv_store
+from onyx.kg.utils.formatting_utils import split_relationship_id
 from onyx.utils.batching import batch_generator
 from onyx.utils.logger import setup_logger
 from shared_configs.configs import MULTI_TENANT
@@ -91,6 +94,60 @@ class _VespaUpdateRequest:
     document_id: str
     url: str
     update_request: dict[str, dict]
+
+
+class KGVespaChunkUpdateRequest(BaseModel):
+    document_id: str
+    chunk_id: int
+    url: str
+    update_request: dict[str, dict]
+
+
+class KGUChunkUpdateRequest(BaseModel):
+    """
+    Update KG fields for a document
+    """
+
+    document_id: str
+    chunk_id: int
+    core_entity: str
+    entities: set[str] | None = None
+    relationships: set[str] | None = None
+    terms: set[str] | None = None
+
+
+class KGUDocumentUpdateRequest(BaseModel):
+    """
+    Update KG fields for a document
+    """
+
+    document_id: str
+    entities: set[str]
+    relationships: set[str]
+    terms: set[str]
+
+
+def generate_kg_update_request(
+    kg_update_request: KGUChunkUpdateRequest,
+) -> dict[str, dict]:
+    kg_update_dict: dict[str, dict] = {}
+
+    if kg_update_request.entities is not None:
+        kg_update_dict["kg_entities"] = {"assign": list(kg_update_request.entities)}
+
+    if kg_update_request.relationships is not None:
+        kg_update_dict["kg_relationships"] = {"assign": []}
+        for relationship in kg_update_request.relationships:
+            source, rel_type, target = split_relationship_id(relationship)
+            kg_update_dict["kg_relationships"]["assign"].append(
+                {
+                    "source": source,
+                    "rel_type": rel_type,
+                    "target": target,
+                }
+            )
+
+    return kg_update_dict
 
 
 def in_memory_zip_from_file_bytes(file_contents: dict[str, bytes]) -> BinaryIO:
@@ -501,6 +558,49 @@ class VespaIndex(DocumentIndex):
                         failure_msg = f"Failed to update document: {future_to_document_id[future]}"
                         raise requests.HTTPError(failure_msg) from e
 
+    @classmethod
+    def _apply_kg_chunk_updates_batched(
+        cls,
+        updates: list[KGVespaChunkUpdateRequest],
+        httpx_client: httpx.Client,
+        batch_size: int = BATCH_SIZE,
+    ) -> None:
+        """Runs a batch of updates in parallel via the ThreadPoolExecutor."""
+
+        @retry(tries=3, delay=1, backoff=2, jitter=(0.0, 1.0))
+        def _kg_update_chunk(
+            update: KGVespaChunkUpdateRequest, http_client: httpx.Client
+        ) -> httpx.Response:
+            return http_client.put(
+                update.url,
+                headers={"Content-Type": "application/json"},
+                json=update.update_request,
+            )
+
+        # NOTE: using `httpx` here since `requests` doesn't support HTTP2. This is beneficient for
+        # indexing / updates / deletes since we have to make a large volume of requests.
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+            for update_batch in batch_generator(updates, batch_size):
+                future_to_document_id = {
+                    executor.submit(
+                        _kg_update_chunk,
+                        update,
+                        httpx_client,
+                    ): update.document_id
+                    for update in update_batch
+                }
+                for future in concurrent.futures.as_completed(future_to_document_id):
+                    res = future.result()
+                    try:
+                        res.raise_for_status()
+                    except requests.HTTPError as e:
+                        failure_msg = (
+                            f"Failed to update document {future_to_document_id[future]}\n"
+                            f"Response: {res.text}"
+                        )
+                        raise requests.HTTPError(failure_msg) from e
+
     def update(self, update_requests: list[UpdateRequest], *, tenant_id: str) -> None:
         logger.debug(f"Updating {len(update_requests)} documents in Vespa")
 
@@ -584,6 +684,49 @@ class VespaIndex(DocumentIndex):
             time.monotonic() - update_start,
         )
 
+    def kg_chunk_updates(
+        self, kg_update_requests: list[KGUChunkUpdateRequest], tenant_id: str
+    ) -> None:
+
+        processed_updates_requests: list[KGVespaChunkUpdateRequest] = []
+        update_start = time.monotonic()
+
+        # Build the _VespaUpdateRequest objects
+
+        for kg_update_request in kg_update_requests:
+            kg_update_dict: dict[str, dict] = {
+                "fields": generate_kg_update_request(kg_update_request)
+            }
+            if not kg_update_dict["fields"]:
+                logger.error("Update request received but nothing to update")
+                continue
+
+            doc_chunk_id = get_uuid_from_chunk_info(
+                document_id=kg_update_request.document_id,
+                chunk_id=kg_update_request.chunk_id,
+                tenant_id=tenant_id,
+                large_chunk_id=None,
+            )
+
+            processed_updates_requests.append(
+                KGVespaChunkUpdateRequest(
+                    document_id=kg_update_request.document_id,
+                    chunk_id=kg_update_request.chunk_id,
+                    url=f"{DOCUMENT_ID_ENDPOINT.format(index_name=self.index_name)}/{doc_chunk_id}",
+                    update_request=kg_update_dict,
+                )
+            )
+
+        with self.httpx_client_context as httpx_client:
+            self._apply_kg_chunk_updates_batched(
+                processed_updates_requests, httpx_client
+            )
+        logger.debug(
+            "Updated %d vespa documents in %.2f seconds",
+            len(processed_updates_requests),
+            time.monotonic() - update_start,
+        )
+
     @retry(
         tries=3,
         delay=1,
@@ -622,13 +765,14 @@ class VespaIndex(DocumentIndex):
             if fields.hidden is not None:
                 update_dict["fields"][HIDDEN] = {"assign": fields.hidden}
 
-        if user_fields is not None:
-            if user_fields.user_file_id is not None:
-                update_dict["fields"][USER_FILE] = {"assign": user_fields.user_file_id}
+            # document_id update is added only for migration purposes, ideally we should not be updating this field
+            if fields.document_id is not None:
+                update_dict["fields"][DOCUMENT_ID] = {"assign": fields.document_id}
 
-            if user_fields.user_folder_id is not None:
-                update_dict["fields"][USER_FOLDER] = {
-                    "assign": user_fields.user_folder_id
+        if user_fields is not None:
+            if user_fields.user_projects is not None:
+                update_dict["fields"][USER_PROJECT] = {
+                    "assign": user_fields.user_projects
                 }
 
         if not update_dict["fields"]:
@@ -918,7 +1062,7 @@ class VespaIndex(DocumentIndex):
         *,
         tenant_id: str,
         index_name: str,
-    ) -> None:
+    ) -> int:
         """
         Deletes all entries in the specified index with the given tenant_id.
 
@@ -928,6 +1072,9 @@ class VespaIndex(DocumentIndex):
         Parameters:
             tenant_id (str): The tenant ID whose documents are to be deleted.
             index_name (str): The name of the index from which to delete documents.
+
+        Returns:
+            int: The number of documents deleted.
         """
         logger.info(
             f"Deleting entries with tenant_id: {tenant_id} from index: {index_name}"
@@ -940,7 +1087,7 @@ class VespaIndex(DocumentIndex):
             logger.info(
                 f"No documents found with tenant_id: {tenant_id} in index: {index_name}"
             )
-            return
+            return 0
 
         # Step 2: Delete documents in batches
         delete_requests = [
@@ -949,6 +1096,7 @@ class VespaIndex(DocumentIndex):
         ]
 
         cls._apply_deletes_batched(delete_requests)
+        return len(document_ids)
 
     @classmethod
     def _get_all_document_ids_by_tenant_id(

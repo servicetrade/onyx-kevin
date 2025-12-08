@@ -128,11 +128,14 @@ def validate_object_creation_for_user(
     target_group_ids: list[int] | None = None,
     object_is_public: bool | None = None,
     object_is_perm_sync: bool | None = None,
+    object_is_owned_by_user: bool = False,
+    object_is_new: bool = False,
 ) -> None:
     """
     All users can create/edit permission synced objects if they don't specify a group
     All admin actions are allowed.
-    Prevents non-admins from creating/editing:
+    Curators and global curators can create public objects.
+    Prevents other non-admins from creating/editing:
     - public objects
     - objects with no groups
     - objects that belong to a group they don't curate
@@ -143,13 +146,23 @@ def validate_object_creation_for_user(
     if not user or user.role == UserRole.ADMIN:
         return
 
-    if object_is_public:
-        detail = "User does not have permission to create public credentials"
+    # Allow curators and global curators to create public objects
+    # w/o associated groups IF the object is new/owned by them
+    if (
+        object_is_public
+        and user.role in [UserRole.CURATOR, UserRole.GLOBAL_CURATOR]
+        and (object_is_new or object_is_owned_by_user)
+    ):
+        return
+
+    if object_is_public and user.role == UserRole.BASIC:
+        detail = "User does not have permission to create public objects"
         logger.error(detail)
         raise HTTPException(
             status_code=400,
             detail=detail,
         )
+
     if not target_group_ids:
         detail = "Curators must specify 1+ groups"
         logger.error(detail)
@@ -568,6 +581,48 @@ def update_user_curator_relationship(
     db_session.commit()
 
 
+def add_users_to_user_group(
+    db_session: Session,
+    user: User | None,
+    user_group_id: int,
+    user_ids: list[UUID],
+) -> UserGroup:
+    db_user_group = fetch_user_group(db_session=db_session, user_group_id=user_group_id)
+    if db_user_group is None:
+        raise ValueError(f"UserGroup with id '{user_group_id}' not found")
+
+    missing_users = [
+        user_id for user_id in user_ids if fetch_user_by_id(db_session, user_id) is None
+    ]
+    if missing_users:
+        raise ValueError(
+            f"User(s) not found: {', '.join(str(user_id) for user_id in missing_users)}"
+        )
+
+    _check_user_group_is_modifiable(db_user_group)
+
+    current_user_ids = [user.id for user in db_user_group.users]
+    current_user_ids_set = set(current_user_ids)
+    new_user_ids = [
+        user_id for user_id in user_ids if user_id not in current_user_ids_set
+    ]
+
+    if not new_user_ids:
+        return db_user_group
+
+    user_group_update = UserGroupUpdate(
+        user_ids=current_user_ids + new_user_ids,
+        cc_pair_ids=[cc_pair.id for cc_pair in db_user_group.cc_pairs],
+    )
+
+    return update_user_group(
+        db_session=db_session,
+        user=user,
+        user_group_id=user_group_id,
+        user_group_update=user_group_update,
+    )
+
+
 def update_user_group(
     db_session: Session,
     user: User | None,
@@ -589,6 +644,17 @@ def update_user_group(
     updated_user_ids = set(user_group_update.user_ids)
     added_user_ids = list(updated_user_ids - current_user_ids)
     removed_user_ids = list(current_user_ids - updated_user_ids)
+
+    if added_user_ids:
+        missing_users = [
+            user_id
+            for user_id in added_user_ids
+            if fetch_user_by_id(db_session, user_id) is None
+        ]
+        if missing_users:
+            raise ValueError(
+                f"User(s) not found: {', '.join(str(user_id) for user_id in missing_users)}"
+            )
 
     # LEAVING THIS HERE FOR NOW FOR GIVING DIFFERENT ROLES
     # ACCESS TO DIFFERENT PERMISSIONS

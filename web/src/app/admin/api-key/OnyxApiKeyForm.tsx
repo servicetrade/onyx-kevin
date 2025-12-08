@@ -1,13 +1,10 @@
 import { Form, Formik } from "formik";
 import { PopupSpec } from "@/components/admin/connectors/Popup";
-import {
-  SelectorFormField,
-  TextFormField,
-} from "@/components/admin/connectors/Field";
+import { SelectorFormField, TextFormField } from "@/components/Field";
 import { createApiKey, updateApiKey } from "./lib";
 import { Modal } from "@/components/Modal";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import Button from "@/refresh-components/buttons/Button";
+import Separator from "@/refresh-components/Separator";
 import Text from "@/components/ui/text";
 import { USER_ROLE_LABELS, UserRole } from "@/lib/types";
 import { APIKey } from "./types";
@@ -117,13 +114,8 @@ export const OnyxApiKeyForm = ({
                 ]}
               />
 
-              <Button
-                type="submit"
-                size="sm"
-                variant="submit"
-                disabled={isSubmitting}
-              >
-                {isUpdate ? "Update!" : "Create!"}
+              <Button type="submit" disabled={isSubmitting}>
+                {isUpdate ? "Update" : "Create"}
               </Button>
             </Form>
           )}

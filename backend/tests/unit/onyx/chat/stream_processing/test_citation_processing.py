@@ -2,12 +2,12 @@ from datetime import datetime
 
 import pytest
 
-from onyx.chat.models import CitationInfo
 from onyx.chat.models import LlmDoc
 from onyx.chat.models import OnyxAnswerPiece
 from onyx.chat.stream_processing.citation_processing import CitationProcessor
 from onyx.chat.stream_processing.utils import DocumentIdOrderMapping
 from onyx.configs.constants import DocumentSource
+from onyx.server.query_and_chat.streaming_models import CitationInfo
 
 
 """
@@ -69,11 +69,9 @@ def process_text(
 ) -> tuple[str, list[CitationInfo]]:
     mock_docs, mock_doc_id_to_rank_map = mock_data
     final_mapping = DocumentIdOrderMapping(order_mapping=mock_doc_id_to_rank_map)
-    display_mapping = DocumentIdOrderMapping(order_mapping=mock_doc_id_to_rank_map)
     processor = CitationProcessor(
         context_docs=mock_docs,
-        final_doc_id_to_rank_map=final_mapping,
-        display_doc_id_to_rank_map=display_mapping,
+        doc_id_to_rank_map=final_mapping,
         stop_stream=None,
     )
 
@@ -148,6 +146,18 @@ def process_text(
             ["doc_0", "doc_1", "doc_2"],
         ),
         (
+            "Citation at very end",
+            ["Test! ", "[", "1", "]"],
+            "Test! [[1]](https://0.com)",
+            ["doc_0"],
+        ),
+        (
+            "Citations with part of next citation",
+            ["Test [", "1]", "[3][", "5]"],
+            "Test [[1]](https://0.com)[[2]]()[[3]](https://2.com)",
+            ["doc_0", "doc_1", "doc_2"],
+        ),
+        (
             "Mixed valid and invalid citations",
             [
                 "Mixed valid and in",
@@ -173,7 +183,7 @@ def process_text(
             ["doc_0", "doc_1", "doc_2"],
         ),
         (
-            "Hardest!",
+            "Multiple citations in one sentence",
             [
                 "Multiple cit",
                 "ations in one ",
@@ -198,7 +208,7 @@ def process_text(
             ["doc_0"],
         ),
         (
-            "Consecutive identical citations!",
+            "Consecutive identical citations",
             [
                 "Citations [",
                 "1",
@@ -230,12 +240,6 @@ def process_text(
                 "",
             ],
             "test [[1]](https://0.com)tt",
-            ["doc_0"],
-        ),
-        (
-            "Repeated citations with text",
-            ["[", "1", "]", "Aasf", "asda", "sff  ", "[", "1", "]", " ."],
-            "[[1]](https://0.com)Aasfasdasff  [[1]](https://0.com) .",
             ["doc_0"],
         ),
         (
@@ -286,6 +290,18 @@ def process_text(
             [
                 "[[1]](",
                 "https://0.com) Citation at ",
+                "the beginning. ",
+            ],
+            "[[1]](https://0.com) Citation at the beginning. ",
+            ["doc_0"],
+        ),
+        (
+            "Citations with extraneous citations, split up completely",
+            [
+                "[[1]]",
+                "(",
+                "https://0.com",
+                ") Citation at ",
                 "the beginning. ",
             ],
             "[[1]](https://0.com) Citation at the beginning. ",
@@ -408,15 +424,128 @@ def process_text(
             "Here is some text[[1]](https://0.com). Some other text",
             ["doc_0"],
         ),
-        # ['To', ' set', ' up', ' D', 'answer', ',', ' if', ' you', ' are', ' running', ' it', ' yourself', ' and',
-        # ' need', ' access', ' to', ' certain', ' features', ' like', ' auto', '-sync', 'ing', ' document',
-        # '-level', ' access', ' permissions', ',', ' you', ' should', ' reach', ' out', ' to', ' the', ' D',
-        # 'answer', ' team', ' to', ' receive', ' access', ' [[', '4', ']].', '']
         (
-            "Unique tokens with double brackets and a single token that ends the citation and has characters after it.",
-            ["... to receive access", " [[", "1", "]].", ""],
-            "... to receive access [[1]](https://0.com).",
+            "Comma-separated citations",
+            ["Here is some text [", "1", ",", " ", "3", "]", "."],
+            "Here is some text [[1]](https://0.com)[[2]]().",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Comma-separated citations without space",
+            ["Test [", "1", ",", "3", "]", " end."],
+            "Test [[1]](https://0.com)[[2]]() end.",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Comma-separated citations with multiple numbers",
+            ["Multiple refs [", "1,", " ", "3", ", ", "5", "]", "."],
+            "Multiple refs [[1]](https://0.com)[[2]]()[[3]](https://2.com).",
+            ["doc_0", "doc_1", "doc_2"],
+        ),
+        (
+            "Mixed single and comma-separated citations",
+            ["Single [", "2", "]", " and multiple [", "1", ",3]"],
+            "Single [[1]](https://0.com) and multiple [[1]](https://0.com)[[2]]()",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Mixed single and comma-separated citations",
+            ["Single [", "2", "]", " tex", "t [", "1", ",3]."],
+            "Single [[1]](https://0.com) text [[1]](https://0.com)[[2]]().",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Comma-separated citation as single token",
+            ["Text ", "[1, 3,5]", " end."],
+            "Text [[1]](https://0.com)[[2]]()[[3]](https://2.com) end.",
+            ["doc_0", "doc_1", "doc_2"],
+        ),
+        (
+            "Comma-separated repeated citations",
+            [
+                "Test! ",
+                "[",
+                "1",
+                "]",
+                ". And so",
+                "me more ",
+                "[",
+                "2",
+                ",",
+                "3",
+                "]",
+                ".",
+            ],
+            "Test! [[1]](https://0.com). And some more [[1]](https://0.com)[[2]]().",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Comma-separated Consecutive identical citations",
+            ["Here is some text ", "[1, 2, 4,", "3, 1]", " end."],
+            "Here is some text [[1]](https://0.com)[[2]]() end.",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Mixed valid and invalid comma-separated citations",
+            ["Here is some text ", "[1, 100, 4, 500]", " end."],
+            "Here is some text [[1]](https://0.com)[100][[2]]()[500] end.",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Invalid comma-separated citations",
+            ["Some text ", "[1, and 2]"],
+            "Some text [1, and 2]",
+            [],
+        ),
+        (
+            "Comma-separated citations with various token splits",
+            [
+                "Text [3, 7]",
+                " padding [",
+                "1",
+                ",",
+                " ",
+                "3",
+                ",",
+                "7",
+                "]",
+                " padding ",
+                "[",
+                "3,",
+                " 7]",
+            ],
+            "Text [[2]]()[[4]]() padding [[1]](https://0.com)[[2]]()[[4]]() padding [[2]]()[[4]]()",
+            ["doc_1", "doc_3", "doc_0"],
+        ),
+        (
+            "Unicode bracket citation 【3】",
+            ["Growth! 【", "3", "】", "."],
+            "Growth! [[2]]().",
+            ["doc_1"],
+        ),
+        (
+            "Unicode bracket citation at start",
+            ["【1】", " Citation at the beginning."],
+            "[[1]](https://0.com) Citation at the beginning.",
             ["doc_0"],
+        ),
+        (
+            "Multiple unicode bracket citations",
+            ["Test 【", "1", "】", " and 【", "3", "】", " end."],
+            "Test [[1]](https://0.com) and [[2]]() end.",
+            ["doc_0", "doc_1"],
+        ),
+        (
+            "Double unicode bracket citation 【【1】】",
+            ["Test 【【1】】", " citation."],
+            "Test 【【1】】 citation.",
+            ["doc_0"],
+        ),
+        (
+            "Mixed ASCII and unicode brackets",
+            ["ASCII [1] and unicode 【", "3", "】", " together."],
+            "ASCII [[1]](https://0.com) and unicode [[2]]() together.",
+            ["doc_0", "doc_1"],
         ),
     ],
 )

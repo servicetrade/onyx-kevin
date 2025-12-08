@@ -1,5 +1,5 @@
 import React from "react";
-import { TextArrayField } from "@/components/admin/connectors/Field";
+import { TextArrayField } from "@/components/Field";
 import { useFormikContext } from "formik";
 
 interface ListInputProps {
@@ -18,7 +18,9 @@ const ListInput: React.FC<ListInputProps> = ({ name, label, description }) => {
       subtext={
         typeof description === "function" ? description(null) : description
       }
-      placeholder={`Enter ${typeof label === "function" ? label(null) : label.toLowerCase()}`}
+      placeholder={`Enter ${
+        typeof label === "function" ? label(null) : label.toLowerCase()
+      }`}
     />
   );
 };

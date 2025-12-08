@@ -5,6 +5,8 @@ from typing import IO
 from typing import Optional
 
 from fastapi_users_db_sqlalchemy import UUID_ID
+from sqlalchemy import cast
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session
 
 from ee.onyx.db.query_history import fetch_chat_sessions_eagerly_by_time
@@ -13,6 +15,7 @@ from ee.onyx.server.reporting.usage_export_models import FlowType
 from ee.onyx.server.reporting.usage_export_models import UsageReportMetadata
 from onyx.configs.constants import MessageType
 from onyx.db.models import UsageReport
+from onyx.db.models import User
 from onyx.file_store.file_store import get_default_file_store
 
 
@@ -47,6 +50,25 @@ def get_empty_chat_messages_entries__paginated(
             if message.message_type != MessageType.USER:
                 continue
 
+            # Get user email
+            user_email = chat_session.user.email if chat_session.user else None
+
+            # Get assistant name (from session persona, or alternate if specified)
+            assistant_name = None
+            if message.alternate_assistant_id:
+                # If there's an alternate assistant, we need to fetch it
+                from onyx.db.models import Persona
+
+                alternate_persona = (
+                    db_session.query(Persona)
+                    .filter(Persona.id == message.alternate_assistant_id)
+                    .first()
+                )
+                if alternate_persona:
+                    assistant_name = alternate_persona.name
+            elif chat_session.persona:
+                assistant_name = chat_session.persona.name
+
             message_skeletons.append(
                 ChatMessageSkeleton(
                     message_id=message.id,
@@ -54,6 +76,9 @@ def get_empty_chat_messages_entries__paginated(
                     user_id=str(chat_session.user_id) if chat_session.user_id else None,
                     flow_type=flow_type,
                     time_sent=message.time_sent,
+                    assistant_name=assistant_name,
+                    user_email=user_email,
+                    number_of_tokens=message.token_count,
                 )
             )
     if len(chat_sessions) == 0:
@@ -86,25 +111,49 @@ def get_all_empty_chat_message_entries(
 
 
 def get_all_usage_reports(db_session: Session) -> list[UsageReportMetadata]:
+    # Get the user emails
+    usage_reports = db_session.query(UsageReport).all()
+    user_ids = {r.requestor_user_id for r in usage_reports if r.requestor_user_id}
+    user_emails = {
+        user.id: user.email
+        for user in db_session.query(User)
+        .filter(cast(User.id, UUID).in_(user_ids))
+        .all()
+    }
+
     return [
         UsageReportMetadata(
             report_name=r.report_name,
-            requestor=str(r.requestor_user_id) if r.requestor_user_id else None,
+            requestor=(
+                user_emails.get(r.requestor_user_id) if r.requestor_user_id else None
+            ),
             time_created=r.time_created,
             period_from=r.period_from,
             period_to=r.period_to,
         )
-        for r in db_session.query(UsageReport).all()
+        for r in usage_reports
     ]
 
 
 def get_usage_report_data(
-    db_session: Session,
-    report_name: str,
+    report_display_name: str,
 ) -> IO:
-    file_store = get_default_file_store(db_session)
+    """
+    Get the usage report data from the file store.
+
+    Args:
+        db_session: The database session.
+        report_display_name: The display name of the usage report. Also assumes
+                             that the file is stored with this as the ID in the file store.
+
+    Returns:
+        The usage report data.
+    """
+    file_store = get_default_file_store()
     # usage report may be very large, so don't load it all into memory
-    return file_store.read_file(file_name=report_name, mode="b", use_tempfile=True)
+    return file_store.read_file(
+        file_id=report_display_name, mode="b", use_tempfile=True
+    )
 
 
 def write_usage_report(

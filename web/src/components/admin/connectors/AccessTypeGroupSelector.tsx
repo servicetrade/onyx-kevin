@@ -1,9 +1,9 @@
 import { usePaidEnterpriseFeaturesEnabled } from "@/components/settings/usePaidEnterpriseFeaturesEnabled";
 import React, { useState, useEffect } from "react";
 import { FieldArray, ArrayHelpers, ErrorMessage, useField } from "formik";
-import Text from "@/components/ui/text";
-import { Separator } from "@/components/ui/separator";
-import { FiUsers } from "react-icons/fi";
+import Text from "@/refresh-components/texts/Text";
+import Button from "@/refresh-components/buttons/Button";
+import Separator from "@/refresh-components/Separator";
 import { UserGroup, UserRole } from "@/lib/types";
 import { useUserGroups } from "@/lib/hooks";
 import {
@@ -13,6 +13,7 @@ import {
   validAutoSyncSources,
 } from "@/lib/types";
 import { useUser } from "@/components/user/UserProvider";
+import SvgUsers from "@/icons/users";
 
 function isValidAutoSyncSource(
   value: ConfigurableSources
@@ -50,12 +51,16 @@ export function AccessTypeGroupSelector({
         access_type_helpers.setValue("public");
         return;
       }
-      if (!isUserAdmin && !isAutoSyncSupported) {
+
+      // Only set default access type if it's not already set, to avoid overriding user selections
+      if (!access_type.value && !isUserAdmin && !isAutoSyncSupported) {
         access_type_helpers.setValue("private");
       }
+
       if (
         access_type.value === "private" &&
         userGroups.length === 1 &&
+        userGroups[0] !== undefined &&
         !isUserAdmin
       ) {
         groups_helpers.setValue([userGroups[0].id]);
@@ -75,6 +80,7 @@ export function AccessTypeGroupSelector({
     access_type_helpers,
     groups_helpers,
     isPaidEnterpriseFeaturesEnabled,
+    isAutoSyncSupported,
   ]);
 
   if (userGroupsIsLoading) {
@@ -87,7 +93,7 @@ export function AccessTypeGroupSelector({
   if (shouldHideContent) {
     return (
       <>
-        {userGroups && (
+        {userGroups && userGroups[0] !== undefined && (
           <div className="mb-1 font-medium text-base">
             This Connector will be assigned to group <b>{userGroups[0].name}</b>
             .
@@ -104,32 +110,24 @@ export function AccessTypeGroupSelector({
         userGroups?.length > 0 && (
           <>
             <Separator />
-            <div className="flex mt-4 gap-x-2 items-center">
-              <div className="block font-medium text-base">
+            <div className="flex flex-col gap-3 pt-4">
+              <Text mainUiAction text05>
                 Assign group access for this Connector
-              </div>
-            </div>
-            {userGroupsIsLoading ? (
-              <div className="animate-pulse bg-background-200 h-8 w-32 rounded"></div>
-            ) : (
-              <Text className="mb-3">
-                {isAdmin ? (
-                  <>
-                    This Connector will be visible/accessible by the groups
-                    selected below
-                  </>
-                ) : (
-                  <>
-                    Curators must select one or more groups to give access to
-                    this Connector
-                  </>
-                )}
               </Text>
-            )}
+              {userGroupsIsLoading ? (
+                <div className="animate-pulse bg-background-200 h-8 w-32 rounded" />
+              ) : (
+                <Text mainUiMuted text03>
+                  {isAdmin
+                    ? "This Connector will be visible/accessible by the groups selected below"
+                    : "Curators must select one or more groups to give access to this Connector"}
+                </Text>
+              )}
+            </div>
             <FieldArray
               name="groups"
               render={(arrayHelpers: ArrayHelpers) => (
-                <div className="flex gap-2 flex-wrap mb-4">
+                <div className="flex flex-wrap gap-2 py-4">
                   {userGroupsIsLoading ? (
                     <div className="animate-pulse bg-background-200 h-8 w-32 rounded"></div>
                   ) : (
@@ -138,23 +136,11 @@ export function AccessTypeGroupSelector({
                       const ind = groups.value.indexOf(userGroup.id);
                       let isSelected = ind !== -1;
                       return (
-                        <div
+                        <Button
                           key={userGroup.id}
-                          className={`
-                            px-3 
-                            py-1
-                            rounded-lg 
-                            border
-                            border-border 
-                            w-fit 
-                            flex 
-                            cursor-pointer 
-                            ${
-                              isSelected
-                                ? "bg-background-200"
-                                : "hover:bg-accent-background-hovered"
-                            }
-                        `}
+                          primary
+                          action={isSelected}
+                          leftIcon={SvgUsers}
                           onClick={() => {
                             if (isSelected) {
                               arrayHelpers.remove(ind);
@@ -163,11 +149,8 @@ export function AccessTypeGroupSelector({
                             }
                           }}
                         >
-                          <div className="my-auto flex">
-                            <FiUsers className="my-auto mr-2" />{" "}
-                            {userGroup.name}
-                          </div>
-                        </div>
+                          {userGroup.name}
+                        </Button>
                       );
                     })
                   )}

@@ -14,19 +14,31 @@ export interface Settings {
   anonymous_user_enabled: boolean;
   anonymous_user_path?: string;
   maximum_chat_retention_days?: number | null;
+  company_name?: string | null;
+  company_description?: string | null;
   notifications: Notification[];
   needs_reindexing: boolean;
   gpu_enabled: boolean;
-  pro_search_enabled?: boolean;
   application_status: ApplicationStatus;
   auto_scroll: boolean;
   temperature_override_enabled: boolean;
   query_history_type: QueryHistoryType;
 
+  deep_research_enabled?: boolean;
+
   // Image processing settings
   image_extraction_and_analysis_enabled?: boolean;
   search_time_image_analysis_enabled?: boolean;
   image_analysis_max_size_mb?: number | null;
+
+  // User Knowledge settings
+  user_knowledge_enabled?: boolean;
+
+  // Connector settings
+  show_extra_connectors?: boolean;
+
+  // Default Assistant settings
+  disable_default_assistant?: boolean;
 }
 
 export enum NotificationType {

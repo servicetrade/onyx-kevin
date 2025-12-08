@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Label, ManualErrorMessage } from "./admin/connectors/Field";
+import { Label, ManualErrorMessage } from "@/components/Field";
 import CreatableSelect from "react-select/creatable";
 import Select from "react-select";
 import { ErrorMessage } from "formik";
@@ -20,6 +20,63 @@ interface MultiSelectDropdownProps {
   onCreate?: (created_name: string) => Promise<Option>;
   error?: string;
 }
+
+const getReactSelectStyles = () => ({
+  control: (base: any) => ({
+    ...base,
+    backgroundColor: "var(--background-neutral-00)",
+    borderColor: "var(--border-03)",
+    color: "var(--text-04)",
+  }),
+  menu: (base: any) => ({
+    ...base,
+    backgroundColor: "var(--background-neutral-00)",
+    border: "1px solid var(--border-03)",
+    borderRadius: "4px",
+    overflow: "hidden",
+  }),
+  menuList: (base: any) => ({
+    ...base,
+    backgroundColor: "var(--background-neutral-00)",
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? "var(--background-150)"
+      : state.isFocused
+        ? "var(--background-100)"
+        : "transparent",
+    color: "var(--text-04)",
+  }),
+  multiValue: (base: any) => ({
+    ...base,
+    backgroundColor: "var(--background-150)",
+  }),
+  multiValueLabel: (base: any) => ({
+    ...base,
+    color: "var(--text-04)",
+  }),
+  multiValueRemove: (base: any) => ({
+    ...base,
+    color: "var(--text-04)",
+    ":hover": {
+      backgroundColor: "var(--background-200)",
+      color: "var(--text-04)",
+    },
+  }),
+  input: (base: any) => ({
+    ...base,
+    color: "var(--text-04)",
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    color: "var(--text-02)",
+  }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: "var(--text-04)",
+  }),
+});
 
 const MultiSelectDropdown = ({
   name,
@@ -80,9 +137,8 @@ const MultiSelectDropdown = ({
           onCreateOption={handleCreateOption}
           onInputChange={handleInputChange}
           inputValue={inputValue}
-          className="react-select-container"
-          classNamePrefix="react-select"
           menuPlacement={direction}
+          styles={getReactSelectStyles()}
         />
       ) : (
         <Select
@@ -92,9 +148,8 @@ const MultiSelectDropdown = ({
           onChange={handleChange}
           onInputChange={handleInputChange}
           inputValue={inputValue}
-          className="react-select-container"
-          classNamePrefix="react-select"
           menuPlacement={direction}
+          styles={getReactSelectStyles()}
         />
       )}
       {error ? (

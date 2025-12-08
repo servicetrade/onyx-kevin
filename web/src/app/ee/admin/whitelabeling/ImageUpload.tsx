@@ -1,4 +1,4 @@
-import { SubLabel } from "@/components/admin/connectors/Field";
+import { SubLabel } from "@/components/Field";
 import { usePopup } from "@/components/admin/connectors/Popup";
 import { useEffect, useState } from "react";
 import Dropzone from "react-dropzone";
@@ -33,10 +33,20 @@ export function ImageUpload({
               type: "error",
               message: "Only one file can be uploaded at a time",
             });
+            return;
           }
 
-          setTmpImageUrl(URL.createObjectURL(acceptedFiles[0]));
-          setSelectedFile(acceptedFiles[0]);
+          const acceptedFile = acceptedFiles[0];
+          if (acceptedFile === undefined) {
+            setPopup({
+              type: "error",
+              message: "acceptedFile cannot be undefined",
+            });
+            return;
+          }
+
+          setTmpImageUrl(URL.createObjectURL(acceptedFile));
+          setSelectedFile(acceptedFile);
           setDragActive(false);
         }}
         onDragLeave={() => setDragActive(false)}

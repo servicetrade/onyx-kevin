@@ -1,5 +1,6 @@
 import math
 from datetime import datetime
+from datetime import timezone
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from onyx.context.search.models import SearchRequest
 from onyx.context.search.pipeline import SearchPipeline
-from onyx.db.engine import get_session
+from onyx.db.engine.sql_engine import get_session
 from onyx.db.models import User
 from onyx.llm.factory import get_default_llms
 from onyx.server.onyx_api.ingestion import api_key_dep
@@ -23,8 +24,8 @@ router = APIRouter(prefix="/gpts")
 
 def time_ago(dt: datetime) -> str:
     # Calculate time difference
-    now = datetime.now()
-    diff = now - dt
+    now = datetime.now(timezone.utc)
+    diff = now - dt.astimezone(timezone.utc)
 
     # Convert difference to minutes
     minutes = diff.total_seconds() / 60

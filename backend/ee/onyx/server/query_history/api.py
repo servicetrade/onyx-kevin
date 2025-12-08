@@ -1,3 +1,5 @@
+import uuid
+from collections.abc import Generator
 from datetime import datetime
 from datetime import timezone
 from http import HTTPStatus
@@ -10,7 +12,8 @@ from fastapi import Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from ee.onyx.db.query_history import fetch_chat_sessions_eagerly_by_time
+from ee.onyx.background.task_name_builders import query_history_task_name
+from ee.onyx.db.query_history import get_all_query_history_export_tasks
 from ee.onyx.db.query_history import get_page_of_chat_sessions
 from ee.onyx.db.query_history import get_total_filtered_chat_sessions_count
 from ee.onyx.server.query_history.models import ChatSessionMinimal
@@ -34,17 +37,19 @@ from onyx.configs.constants import QueryHistoryType
 from onyx.configs.constants import SessionType
 from onyx.db.chat import get_chat_session_by_id
 from onyx.db.chat import get_chat_sessions_by_user
-from onyx.db.engine import get_session
+from onyx.db.engine.sql_engine import get_session
 from onyx.db.enums import TaskStatus
+from onyx.db.file_record import get_query_history_export_files
 from onyx.db.models import ChatSession
 from onyx.db.models import User
-from onyx.db.pg_file_store import get_query_history_export_files
-from onyx.db.tasks import get_all_query_history_export_tasks
 from onyx.db.tasks import get_task_with_id
+from onyx.db.tasks import register_task
 from onyx.file_store.file_store import get_default_file_store
 from onyx.server.documents.models import PaginatedReturn
 from onyx.server.query_and_chat.models import ChatSessionDetails
 from onyx.server.query_and_chat.models import ChatSessionsResponse
+from onyx.utils.threadpool_concurrency import parallel_yield
+from shared_configs.contextvars import get_current_tenant_id
 
 router = APIRouter()
 
@@ -61,41 +66,55 @@ def ensure_query_history_is_enabled(
         )
 
 
+def yield_snapshot_from_chat_session(
+    chat_session: ChatSession,
+    db_session: Session,
+) -> Generator[ChatSessionSnapshot | None]:
+    yield snapshot_from_chat_session(chat_session=chat_session, db_session=db_session)
+
+
 def fetch_and_process_chat_session_history(
     db_session: Session,
     start: datetime,
     end: datetime,
-    feedback_type: QAFeedbackType | None,
     limit: int | None = 500,
-) -> list[ChatSessionSnapshot]:
-    # observed to be slow a scale of 8192 sessions and 4 messages per session
+) -> Generator[ChatSessionSnapshot]:
+    PAGE_SIZE = 100
 
-    # this is a little slow (5 seconds)
-    chat_sessions = fetch_chat_sessions_eagerly_by_time(
-        start=start, end=end, db_session=db_session, limit=limit
-    )
+    page = 0
+    while True:
+        paged_chat_sessions = get_page_of_chat_sessions(
+            start_time=start,
+            end_time=end,
+            db_session=db_session,
+            page_num=page,
+            page_size=PAGE_SIZE,
+        )
 
-    # this is VERY slow (80 seconds) due to create_chat_chain being called
-    # for each session. Needs optimizing.
-    chat_session_snapshots = [
-        snapshot_from_chat_session(chat_session=chat_session, db_session=db_session)
-        for chat_session in chat_sessions
-    ]
+        if not paged_chat_sessions:
+            break
 
-    valid_snapshots = [
-        snapshot for snapshot in chat_session_snapshots if snapshot is not None
-    ]
+        paged_snapshots = parallel_yield(
+            [
+                yield_snapshot_from_chat_session(
+                    db_session=db_session,
+                    chat_session=chat_session,
+                )
+                for chat_session in paged_chat_sessions
+            ]
+        )
 
-    if feedback_type:
-        valid_snapshots = [
-            snapshot
-            for snapshot in valid_snapshots
-            if any(
-                message.feedback_type == feedback_type for message in snapshot.messages
-            )
-        ]
+        for snapshot in paged_snapshots:
+            if snapshot:
+                yield snapshot
 
-    return valid_snapshots
+        # If we've fetched *less* than a `PAGE_SIZE` worth
+        # of data, we have reached the end of the
+        # pagination sequence; break.
+        if len(paged_chat_sessions) < PAGE_SIZE:
+            break
+
+        page += 1
 
 
 def snapshot_from_chat_session(
@@ -132,7 +151,7 @@ def snapshot_from_chat_session(
 
 
 @router.get("/admin/chat-sessions")
-def get_user_chat_sessions(
+def admin_get_chat_sessions(
     user_id: UUID,
     _: User | None = Depends(current_admin_user),
     db_session: Session = Depends(get_session),
@@ -163,7 +182,6 @@ def get_user_chat_sessions(
                 time_created=chat.time_created.isoformat(),
                 time_updated=chat.time_updated.isoformat(),
                 shared_status=chat.shared_status,
-                folder_id=chat.folder_id,
                 current_alternate_model=chat.current_alternate_model,
             )
             for chat in chat_sessions
@@ -295,17 +313,32 @@ def start_query_history_export(
             f"Start time must come before end time, but instead got the start time coming after; {start=} {end=}",
         )
 
-    task = client_app.send_task(
+    task_id_uuid = uuid.uuid4()
+    task_id = str(task_id_uuid)
+    start_time = datetime.now(tz=timezone.utc)
+
+    register_task(
+        db_session=db_session,
+        task_name=query_history_task_name(start=start, end=end),
+        task_id=task_id,
+        status=TaskStatus.PENDING,
+        start_time=start_time,
+    )
+
+    client_app.send_task(
         OnyxCeleryTask.EXPORT_QUERY_HISTORY_TASK,
+        task_id=task_id,
         priority=OnyxCeleryPriority.MEDIUM,
         queue=OnyxCeleryQueues.CSV_GENERATION,
         kwargs={
             "start": start,
             "end": end,
+            "start_time": start_time,
+            "tenant_id": get_current_tenant_id(),
         },
     )
 
-    return {"request_id": task.id}
+    return {"request_id": task_id}
 
 
 @router.get("/admin/query-history/export-status")
@@ -324,11 +357,11 @@ def get_query_history_export_status(
     # If task is None, then it's possible that the task has already finished processing.
     # Therefore, we should then check if the export file has already been stored inside of the file-store.
     # If that *also* doesn't exist, then we can return a 404.
-    file_store = get_default_file_store(db_session)
+    file_store = get_default_file_store()
 
     report_name = construct_query_history_report_name(request_id)
     has_file = file_store.has_file(
-        file_name=report_name,
+        file_id=report_name,
         file_origin=FileOrigin.QUERY_HISTORY_CSV,
         file_type=FileType.CSV,
     )
@@ -351,9 +384,9 @@ def download_query_history_csv(
     ensure_query_history_is_enabled(disallowed=[QueryHistoryType.DISABLED])
 
     report_name = construct_query_history_report_name(request_id)
-    file_store = get_default_file_store(db_session)
+    file_store = get_default_file_store()
     has_file = file_store.has_file(
-        file_name=report_name,
+        file_id=report_name,
         file_origin=FileOrigin.QUERY_HISTORY_CSV,
         file_type=FileType.CSV,
     )

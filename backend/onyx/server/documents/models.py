@@ -1,30 +1,32 @@
+from collections.abc import Sequence
 from datetime import datetime
 from datetime import timezone
 from datetime import UTC
+from enum import Enum
 from typing import Any
 from typing import Generic
 from typing import TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
+from pydantic import ConfigDict
 from pydantic import Field
 
-from ee.onyx.server.query_history.models import ChatSessionMinimal
-from onyx.background.indexing.models import IndexAttemptErrorPydantic
 from onyx.configs.app_configs import MASK_CREDENTIAL_PREFIX
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.models import InputType
 from onyx.db.enums import AccessType
 from onyx.db.enums import ConnectorCredentialPairStatus
+from onyx.db.enums import PermissionSyncStatus
 from onyx.db.models import Connector
 from onyx.db.models import ConnectorCredentialPair
 from onyx.db.models import Credential
+from onyx.db.models import DocPermissionSyncAttempt
 from onyx.db.models import Document as DbDocument
 from onyx.db.models import IndexAttempt
 from onyx.db.models import IndexingStatus
 from onyx.db.models import TaskStatus
-from onyx.server.models import FullUserSnapshot
-from onyx.server.models import InvitedUserSnapshot
+from onyx.server.federated.models import FederatedConnectorStatus
 from onyx.server.utils import mask_credential_dict
 from onyx.utils.variable_functionality import fetch_ee_implementation_or_noop
 
@@ -51,6 +53,11 @@ class DocumentInfo(BaseModel):
 class ChunkInfo(BaseModel):
     content: str
     num_tokens: int
+
+
+class IndexedSourcesResponse(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+    sources: list[DocumentSource]
 
 
 class DeletionAttemptSnapshot(BaseModel):
@@ -110,6 +117,7 @@ class ConnectorSnapshot(ConnectorBase):
 class CredentialSwapRequest(BaseModel):
     new_credential_id: int
     connector_id: int
+    access_type: AccessType
 
 
 class CredentialDataUpdateRequest(BaseModel):
@@ -167,6 +175,8 @@ class IndexAttemptSnapshot(BaseModel):
     full_exception_trace: str | None
     time_started: str | None
     time_updated: str
+    poll_range_start: datetime | None = None
+    poll_range_end: datetime | None = None
 
     @classmethod
     def from_index_attempt_db_model(
@@ -188,19 +198,44 @@ class IndexAttemptSnapshot(BaseModel):
                 else None
             ),
             time_updated=index_attempt.time_updated.isoformat(),
+            poll_range_start=index_attempt.poll_range_start,
+            poll_range_end=index_attempt.poll_range_end,
         )
 
 
 # These are the types currently supported by the pagination hook
 # More api endpoints can be refactored and be added here for use with the pagination hook
-PaginatedType = TypeVar(
-    "PaginatedType",
-    IndexAttemptSnapshot,
-    FullUserSnapshot,
-    InvitedUserSnapshot,
-    ChatSessionMinimal,
-    IndexAttemptErrorPydantic,
-)
+PaginatedType = TypeVar("PaginatedType", bound=BaseModel)
+
+
+class PermissionSyncAttemptSnapshot(BaseModel):
+    id: int
+    status: PermissionSyncStatus
+    error_message: str | None
+    total_docs_synced: int
+    docs_with_permission_errors: int
+    time_created: str
+    time_started: str | None
+    time_finished: str | None
+
+    @classmethod
+    def from_permission_sync_attempt_db_model(
+        cls, attempt: DocPermissionSyncAttempt
+    ) -> "PermissionSyncAttemptSnapshot":
+        return PermissionSyncAttemptSnapshot(
+            id=attempt.id,
+            status=attempt.status,
+            error_message=attempt.error_message,
+            total_docs_synced=attempt.total_docs_synced or 0,
+            docs_with_permission_errors=attempt.docs_with_permission_errors or 0,
+            time_created=attempt.time_created.isoformat(),
+            time_started=(
+                attempt.time_started.isoformat() if attempt.time_started else None
+            ),
+            time_finished=(
+                attempt.time_finished.isoformat() if attempt.time_finished else None
+            ),
+        )
 
 
 class PaginatedReturn(BaseModel, Generic[PaginatedType]):
@@ -233,6 +268,12 @@ class CCPairFullInfo(BaseModel):
     last_full_permission_sync: datetime | None
     overall_indexing_speed: float | None
     latest_checkpoint_description: str | None
+
+    # permission sync attempt status
+    last_permission_sync_attempt_status: PermissionSyncStatus | None
+    permission_syncing: bool
+    last_permission_sync_attempt_finished: datetime | None
+    last_permission_sync_attempt_error_message: str | None
 
     @classmethod
     def _get_last_full_permission_sync(
@@ -282,6 +323,10 @@ class CCPairFullInfo(BaseModel):
         num_docs_indexed: int,  # not ideal, but this must be computed separately
         is_editable_for_current_user: bool,
         indexing: bool,
+        last_permission_sync_attempt_status: PermissionSyncStatus | None = None,
+        permission_syncing: bool = False,
+        last_permission_sync_attempt_finished: datetime | None = None,
+        last_permission_sync_attempt_error_message: str | None = None,
     ) -> "CCPairFullInfo":
         # figure out if we need to artificially deflate the number of docs indexed.
         # This is required since the total number of docs indexed by a CC Pair is
@@ -336,6 +381,10 @@ class CCPairFullInfo(BaseModel):
             last_full_permission_sync=cls._get_last_full_permission_sync(cc_pair_model),
             overall_indexing_speed=overall_indexing_speed,
             latest_checkpoint_description=None,
+            last_permission_sync_attempt_status=last_permission_sync_attempt_status,
+            permission_syncing=permission_syncing,
+            last_permission_sync_attempt_finished=last_permission_sync_attempt_finished,
+            last_permission_sync_attempt_error_message=last_permission_sync_attempt_error_message,
         )
 
 
@@ -388,6 +437,43 @@ class ConnectorIndexingStatus(ConnectorStatus):
     in_progress: bool
 
 
+class DocsCountOperator(str, Enum):
+    GREATER_THAN = ">"
+    LESS_THAN = "<"
+    EQUAL_TO = "="
+
+
+class ConnectorIndexingStatusLite(BaseModel):
+    cc_pair_id: int
+    name: str | None
+    source: DocumentSource
+    access_type: AccessType
+    cc_pair_status: ConnectorCredentialPairStatus
+    in_progress: bool
+    in_repeated_error_state: bool
+    last_finished_status: IndexingStatus | None
+    last_status: IndexingStatus | None
+    last_success: datetime | None
+    is_editable: bool
+    docs_indexed: int
+    latest_index_attempt_docs_indexed: int | None
+
+
+class SourceSummary(BaseModel):
+    total_connectors: int
+    active_connectors: int
+    public_connectors: int
+    total_docs_indexed: int
+
+
+class ConnectorIndexingStatusLiteResponse(BaseModel):
+    source: DocumentSource
+    summary: SourceSummary
+    current_page: int
+    total_pages: int
+    indexing_statuses: Sequence[ConnectorIndexingStatusLite | FederatedConnectorStatus]
+
+
 class ConnectorCredentialPairIdentifier(BaseModel):
     connector_id: int
     credential_id: int
@@ -410,6 +496,26 @@ class ConnectorCredentialPairDescriptor(BaseModel):
     connector: ConnectorSnapshot
     credential: CredentialSnapshot
     access_type: AccessType
+
+
+class CCPairSummary(BaseModel):
+    """Simplified connector-credential pair information with just essential data"""
+
+    id: int
+    name: str | None
+    source: DocumentSource
+    access_type: AccessType
+
+    @classmethod
+    def from_cc_pair_descriptor(
+        cls, descriptor: ConnectorCredentialPairDescriptor
+    ) -> "CCPairSummary":
+        return cls(
+            id=descriptor.id,
+            name=descriptor.name,
+            source=descriptor.connector.source,
+            access_type=descriptor.access_type,
+        )
 
 
 class RunConnectorRequest(BaseModel):
@@ -461,6 +567,7 @@ class GoogleServiceAccountCredentialRequest(BaseModel):
 
 class FileUploadResponse(BaseModel):
     file_paths: list[str]
+    file_names: list[str]
     zip_metadata: dict[str, Any]
 
 
@@ -485,3 +592,15 @@ class GmailCallback(BaseModel):
 class GDriveCallback(BaseModel):
     state: str
     code: str
+
+
+class IndexingStatusRequest(BaseModel):
+    secondary_index: bool = False
+    source: DocumentSource | None = None
+    access_type_filters: list[AccessType] = Field(default_factory=list)
+    last_status_filters: list[IndexingStatus] = Field(default_factory=list)
+    docs_count_operator: DocsCountOperator | None = None
+    docs_count_value: int | None = None
+    name_filter: str | None = None
+    source_to_page: dict[DocumentSource, int] = Field(default_factory=dict)
+    get_all_connectors: bool = False

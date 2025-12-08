@@ -27,7 +27,7 @@ def fireflies_connector() -> FirefliesConnector:
 
 
 @pytest.mark.xfail(
-    reason="Environment variable not set for some reason",
+    reason="We don't have the key that is stored in GitHub Secrets and the returned data is different than expected",
 )
 def test_fireflies_connector_basic(fireflies_connector: FirefliesConnector) -> None:
     test_data = load_test_data()
@@ -46,11 +46,12 @@ def test_fireflies_connector_basic(fireflies_connector: FirefliesConnector) -> N
     assert target_doc.semantic_identifier == test_data["semantic_identifier"]
     assert target_doc.primary_owners[0].email == test_data["primary_owners"]
     assert target_doc.secondary_owners == test_data["secondary_owners"]
+    assert str(target_doc.doc_updated_at) == test_data["doc_updated_at"]
 
     assert (
         target_doc.source == DocumentSource.FIREFLIES
     ), "Document source is not fireflies"
-    assert target_doc.metadata == {}
+    assert target_doc.metadata == test_data["metadata"]
 
     # Check that the test data and the connector data contain the same section data
     assert {section.text for section in target_doc.sections} == {

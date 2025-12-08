@@ -1,12 +1,16 @@
 from datetime import datetime
+from enum import Enum
 from typing import TypeVarTuple
 
 from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy import desc
 from sqlalchemy import exists
+from sqlalchemy import lateral
+from sqlalchemy import or_
 from sqlalchemy import Select
 from sqlalchemy import select
+from sqlalchemy import true
 from sqlalchemy import update
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm import joinedload
@@ -14,11 +18,12 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 
 from onyx.configs.app_configs import DISABLE_AUTH
+from onyx.configs.app_configs import USER_FILE_INDEXING_LIMIT
 from onyx.configs.constants import DocumentSource
 from onyx.db.connector import fetch_connector_by_id
 from onyx.db.credentials import fetch_credential_by_id
 from onyx.db.credentials import fetch_credential_by_id_for_user
-from onyx.db.engine import get_session_context_manager
+from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from onyx.db.enums import AccessType
 from onyx.db.enums import ConnectorCredentialPairStatus
 from onyx.db.models import Connector
@@ -26,11 +31,9 @@ from onyx.db.models import ConnectorCredentialPair
 from onyx.db.models import Credential
 from onyx.db.models import IndexAttempt
 from onyx.db.models import IndexingStatus
-from onyx.db.models import IndexModelStatus
 from onyx.db.models import SearchSettings
 from onyx.db.models import User
 from onyx.db.models import User__UserGroup
-from onyx.db.models import UserFile
 from onyx.db.models import UserGroup__ConnectorCredentialPair
 from onyx.db.models import UserRole
 from onyx.server.models import StatusResponse
@@ -40,6 +43,11 @@ from onyx.utils.variable_functionality import fetch_ee_implementation_or_noop
 logger = setup_logger()
 
 R = TypeVarTuple("R")
+
+
+class ConnectorType(str, Enum):
+    STANDARD = "standard"
+    USER_FILE = "user_file"
 
 
 def _add_user_filters(
@@ -111,12 +119,13 @@ def get_connector_credential_pairs_for_user(
     eager_load_credential: bool = False,
     eager_load_user: bool = False,
     include_user_files: bool = False,
+    order_by_desc: bool = False,
+    source: DocumentSource | None = None,
 ) -> list[ConnectorCredentialPair]:
     if eager_load_user:
         assert (
             eager_load_credential
         ), "eager_load_credential must be True if eager_load_user is True"
-
     stmt = select(ConnectorCredentialPair).distinct()
 
     if eager_load_connector:
@@ -129,11 +138,20 @@ def get_connector_credential_pairs_for_user(
         stmt = stmt.options(load_opts)
 
     stmt = _add_user_filters(stmt, user, get_editable)
+
+    if source:
+        stmt = stmt.join(ConnectorCredentialPair.connector).where(
+            Connector.source == source.value
+        )
+
     if ids:
         stmt = stmt.where(ConnectorCredentialPair.id.in_(ids))
 
     if not include_user_files:
-        stmt = stmt.where(ConnectorCredentialPair.is_user_file != True)  # noqa: E712
+        stmt = stmt.where(ConnectorCredentialPair.is_user_file.is_(False))
+
+    if order_by_desc:
+        stmt = stmt.order_by(desc(ConnectorCredentialPair.id))
 
     return list(db_session.scalars(stmt).unique().all())
 
@@ -148,16 +166,20 @@ def get_connector_credential_pairs_for_user_parallel(
     eager_load_connector: bool = False,
     eager_load_credential: bool = False,
     eager_load_user: bool = False,
+    order_by_desc: bool = False,
+    source: DocumentSource | None = None,
 ) -> list[ConnectorCredentialPair]:
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         return get_connector_credential_pairs_for_user(
-            db_session,
-            user,
-            get_editable,
-            ids,
-            eager_load_connector,
-            eager_load_credential,
-            eager_load_user,
+            db_session=db_session,
+            user=user,
+            get_editable=get_editable,
+            ids=ids,
+            eager_load_connector=eager_load_connector,
+            eager_load_credential=eager_load_credential,
+            eager_load_user=eager_load_user,
+            order_by_desc=order_by_desc,
+            source=source,
         )
 
 
@@ -209,7 +231,7 @@ def get_cc_pair_groups_for_ids(
 def get_cc_pair_groups_for_ids_parallel(
     cc_pair_ids: list[int],
 ) -> list[UserGroup__ConnectorCredentialPair]:
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         return get_cc_pair_groups_for_ids(db_session, cc_pair_ids)
 
 
@@ -256,9 +278,23 @@ def get_connector_credential_pair_from_id_for_user(
     return result.scalar_one_or_none()
 
 
+def verify_user_has_access_to_cc_pair(
+    cc_pair_id: int,
+    db_session: Session,
+    user: User,
+    get_editable: bool = True,
+) -> bool:
+    stmt = select(ConnectorCredentialPair.id)
+    stmt = _add_user_filters(stmt, user, get_editable)
+    stmt = stmt.where(ConnectorCredentialPair.id == cc_pair_id)
+    result = db_session.execute(stmt)
+    return result.scalars().first() is not None
+
+
 def get_connector_credential_pair_from_id(
     db_session: Session,
     cc_pair_id: int,
+    eager_load_connector: bool = False,
     eager_load_credential: bool = False,
 ) -> ConnectorCredentialPair | None:
     stmt = select(ConnectorCredentialPair).distinct()
@@ -266,6 +302,8 @@ def get_connector_credential_pair_from_id(
 
     if eager_load_credential:
         stmt = stmt.options(joinedload(ConnectorCredentialPair.credential))
+    if eager_load_connector:
+        stmt = stmt.options(joinedload(ConnectorCredentialPair.connector))
 
     result = db_session.execute(stmt)
     return result.scalar_one_or_none()
@@ -283,50 +321,40 @@ def get_connector_credential_pairs_for_source(
     return list(db_session.scalars(stmt).unique().all())
 
 
-def get_last_successful_attempt_time(
-    connector_id: int,
-    credential_id: int,
+def get_last_successful_attempt_poll_range_end(
+    cc_pair_id: int,
     earliest_index: float,
     search_settings: SearchSettings,
     db_session: Session,
 ) -> float:
-    """Gets the timestamp of the last successful index run stored in
-    the CC Pair row in the database"""
-    if search_settings.status == IndexModelStatus.PRESENT:
-        connector_credential_pair = get_connector_credential_pair(
-            db_session=db_session,
-            connector_id=connector_id,
-            credential_id=credential_id,
-        )
-        if (
-            connector_credential_pair is None
-            or connector_credential_pair.last_successful_index_time is None
-        ):
-            return earliest_index
+    """Used to get the latest `poll_range_end` for a given connector and credential.
 
-        return connector_credential_pair.last_successful_index_time.timestamp()
+    This can be used to determine the next "start" time for a new index attempt.
 
-    # For Secondary Index we don't keep track of the latest success, so have to calculate it live
-    attempt = (
+    Note that the attempts time_started is not necessarily correct - that gets set
+    separately and is similar but not exactly the same as the `poll_range_end`.
+    """
+    latest_successful_index_attempt = (
         db_session.query(IndexAttempt)
         .join(
             ConnectorCredentialPair,
             IndexAttempt.connector_credential_pair_id == ConnectorCredentialPair.id,
         )
         .filter(
-            ConnectorCredentialPair.connector_id == connector_id,
-            ConnectorCredentialPair.credential_id == credential_id,
+            ConnectorCredentialPair.id == cc_pair_id,
             IndexAttempt.search_settings_id == search_settings.id,
             IndexAttempt.status == IndexingStatus.SUCCESS,
         )
-        .order_by(IndexAttempt.time_started.desc())
+        .order_by(IndexAttempt.poll_range_end.desc())
         .first()
     )
-
-    if not attempt or not attempt.time_started:
+    if (
+        not latest_successful_index_attempt
+        or not latest_successful_index_attempt.poll_range_end
+    ):
         return earliest_index
 
-    return attempt.time_started.timestamp()
+    return latest_successful_index_attempt.poll_range_end.timestamp()
 
 
 """Updates"""
@@ -414,10 +442,25 @@ def set_cc_pair_repeated_error_state(
     cc_pair_id: int,
     in_repeated_error_state: bool,
 ) -> None:
+    values: dict = {"in_repeated_error_state": in_repeated_error_state}
+
+    # When entering repeated error state, also pause the connector
+    # to prevent continued indexing retry attempts.
+    # However, don't pause if there's an active manual indexing trigger,
+    # which indicates the user wants to retry immediately.
+    if in_repeated_error_state:
+        cc_pair = get_connector_credential_pair_from_id(
+            db_session=db_session,
+            cc_pair_id=cc_pair_id,
+        )
+        # Only pause if there's no manual indexing trigger active
+        if cc_pair and cc_pair.indexing_trigger is None:
+            values["status"] = ConnectorCredentialPairStatus.PAUSED
+
     stmt = (
         update(ConnectorCredentialPair)
         .where(ConnectorCredentialPair.id == cc_pair_id)
-        .values(in_repeated_error_state=in_repeated_error_state)
+        .values(**values)
     )
     db_session.execute(stmt)
     db_session.commit()
@@ -630,14 +673,97 @@ def remove_credential_from_connector(
     )
 
 
-def fetch_connector_credential_pairs(
+def fetch_indexable_standard_connector_credential_pair_ids(
     db_session: Session,
-    include_user_files: bool = False,
-) -> list[ConnectorCredentialPair]:
-    stmt = select(ConnectorCredentialPair)
-    if not include_user_files:
-        stmt = stmt.where(ConnectorCredentialPair.is_user_file != True)  # noqa: E712
-    return list(db_session.scalars(stmt).unique().all())
+    active_cc_pairs_only: bool = True,
+    limit: int | None = None,
+) -> list[int]:
+    stmt = select(ConnectorCredentialPair.id)
+
+    # For regular indexing checks
+    if active_cc_pairs_only:
+        stmt = stmt.where(
+            ConnectorCredentialPair.status.in_(
+                ConnectorCredentialPairStatus.active_statuses()
+            )
+        )
+    else:
+        # For embedding swap checks, include PAUSED and exclude DELETING or INVALID
+        stmt = stmt.where(
+            ConnectorCredentialPair.status.in_(
+                ConnectorCredentialPairStatus.indexable_statuses()
+            )
+        )
+
+    # Exclude user files. NOTE: some cc pairs have null for is_user_file instead of False
+    stmt = stmt.where(ConnectorCredentialPair.is_user_file.is_not(True))
+
+    if limit:
+        stmt = stmt.limit(limit)
+
+    return list(db_session.scalars(stmt))
+
+
+def fetch_indexable_user_file_connector_credential_pair_ids(
+    db_session: Session,
+    search_settings_id: int,
+    limit: int | None = USER_FILE_INDEXING_LIMIT,
+) -> list[int]:
+    """
+    Return up to `limit` user file connector_credential_pair IDs that still
+    need indexing for the given `search_settings_id`
+
+    A cc_pair is considered "needs indexing" if its most recent IndexAttempt
+    for this search_settings_id is either:
+        - Missing entirely (no attempts yet)
+        - Present but not SUCCESS status
+
+    Implementation details:
+        - Uses a LEFT JOIN LATERAL subquery to fetch only the single newest attempt
+            per cc_pair (`ORDER BY time_updated DESC LIMIT 1`), instead of joining all
+            attempts. This avoids scanning thousands of historical attempts and
+            keeps memory/CPU usage low
+        - `ON TRUE` is required in the lateral join because the correlation to
+            ConnectorCredentialPair.id happens inside the subquery itself
+        - NOTE: Shares some redundant logic with should_index() (TODO: combine)
+
+    Returns:
+        list[int]: connector_credential_pair IDs that should be indexed next
+    """
+    latest_attempt = lateral(
+        select(IndexAttempt.status)
+        .where(
+            IndexAttempt.connector_credential_pair_id == ConnectorCredentialPair.id,
+            IndexAttempt.search_settings_id == search_settings_id,
+        )
+        .order_by(IndexAttempt.time_updated.desc())
+        .limit(1)
+    ).alias("latest_attempt")
+
+    stmt = (
+        select(ConnectorCredentialPair.id)
+        .outerjoin(latest_attempt, true())  # ON TRUE, Postgres-style lateral join
+        .where(
+            ConnectorCredentialPair.is_user_file.is_(True),
+            or_(
+                latest_attempt.c.status.is_(None),  # no attempts at all
+                latest_attempt.c.status != IndexingStatus.SUCCESS,  # latest != SUCCESS
+            ),
+        )
+        .limit(limit)  # Always apply a limit when fetching user file cc pairs
+    )
+
+    return list(db_session.scalars(stmt))
+
+
+def fetch_connector_credential_pair_for_connector(
+    db_session: Session,
+    connector_id: int,
+) -> ConnectorCredentialPair | None:
+    stmt = select(ConnectorCredentialPair).where(
+        ConnectorCredentialPair.connector_id == connector_id,
+    )
+    return db_session.scalar(stmt)
 
 
 def resync_cc_pair(
@@ -693,31 +819,3 @@ def resync_cc_pair(
     )
 
     db_session.commit()
-
-
-def get_connector_credential_pairs_with_user_files(
-    db_session: Session,
-) -> list[ConnectorCredentialPair]:
-    """
-    Get all connector credential pairs that have associated user files.
-
-    Args:
-        db_session: Database session
-
-    Returns:
-        List of ConnectorCredentialPair objects that have user files
-    """
-    return (
-        db_session.query(ConnectorCredentialPair)
-        .join(UserFile, UserFile.cc_pair_id == ConnectorCredentialPair.id)
-        .distinct()
-        .all()
-    )
-
-
-def delete_userfiles_for_cc_pair__no_commit(
-    db_session: Session,
-    cc_pair_id: int,
-) -> None:
-    stmt = delete(UserFile).where(UserFile.cc_pair_id == cc_pair_id)
-    db_session.execute(stmt)

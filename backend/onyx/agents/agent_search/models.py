@@ -1,12 +1,15 @@
 from uuid import UUID
 
 from pydantic import BaseModel
-from pydantic import model_validator
+from pydantic import ConfigDict
 from sqlalchemy.orm import Session
 
+from onyx.agents.agent_search.dr.enums import ResearchType
 from onyx.chat.prompt_builder.answer_prompt_builder import AnswerPromptBuilder
-from onyx.context.search.models import SearchRequest
+from onyx.context.search.models import RerankingDetails
+from onyx.db.models import Persona
 from onyx.file_store.utils import InMemoryChatFile
+from onyx.kg.models import KGConfigSettings
 from onyx.llm.interfaces import LLM
 from onyx.tools.force import ForceUseTool
 from onyx.tools.tool import Tool
@@ -16,13 +19,14 @@ from onyx.tools.tool_implementations.search.search_tool import SearchTool
 class GraphInputs(BaseModel):
     """Input data required for the graph execution"""
 
-    search_request: SearchRequest
+    persona: Persona | None = None
+    rerank_settings: RerankingDetails | None = None
     prompt_builder: AnswerPromptBuilder
     files: list[InMemoryChatFile] | None = None
     structured_response_format: dict | None = None
+    project_instructions: str | None = None
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class GraphTooling(BaseModel):
@@ -37,8 +41,7 @@ class GraphTooling(BaseModel):
     force_use_tool: ForceUseTool
     using_tool_calling_llm: bool = False
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class GraphPersistence(BaseModel):
@@ -53,8 +56,7 @@ class GraphPersistence(BaseModel):
     # message were flushed to; only needed for agentic search
     db_session: Session
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class GraphSearchConfig(BaseModel):
@@ -68,6 +70,8 @@ class GraphSearchConfig(BaseModel):
     allow_refinement: bool = True
     skip_gen_ai_answer_generation: bool = False
     allow_agent_reranking: bool = False
+    kg_config_settings: KGConfigSettings = KGConfigSettings()
+    research_type: ResearchType = ResearchType.THOUGHTFUL
 
 
 class GraphConfig(BaseModel):
@@ -81,11 +85,4 @@ class GraphConfig(BaseModel):
     # Only needed for agentic search
     persistence: GraphPersistence
 
-    @model_validator(mode="after")
-    def validate_search_tool(self) -> "GraphConfig":
-        if self.behavior.use_agentic_search and self.tooling.search_tool is None:
-            raise ValueError("search_tool must be provided for agentic search")
-        return self
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

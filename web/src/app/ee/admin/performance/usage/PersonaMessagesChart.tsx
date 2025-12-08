@@ -5,8 +5,7 @@ import {
   usePersonaMessages,
   usePersonaUniqueUsers,
 } from "../lib";
-import { useAssistants } from "@/components/context/AssistantsContext";
-import { DateRangePickerValue } from "@/app/ee/admin/performance/DateRangeSelector";
+import { DateRangePickerValue } from "@/components/dateRangeSelectors/AdminDateRangeSelector";
 import Text from "@/components/ui/text";
 import Title from "@/components/ui/title";
 import CardSection from "@/components/admin/CardSection";
@@ -19,10 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useMemo, useEffect } from "react";
+import { Persona } from "@/app/admin/assistants/interfaces";
 
 export function PersonaMessagesChart({
+  availablePersonas,
   timeRange,
 }: {
+  availablePersonas: Persona[];
   timeRange: DateRangePickerValue;
 }) {
   const [selectedPersonaId, setSelectedPersonaId] = useState<
@@ -30,7 +32,6 @@ export function PersonaMessagesChart({
   >(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const { allAssistants: personaList } = useAssistants();
 
   const {
     data: personaMessagesData,
@@ -48,11 +49,11 @@ export function PersonaMessagesChart({
   const hasError = personaMessagesError || personaUniqueUsersError;
 
   const filteredPersonaList = useMemo(() => {
-    if (!personaList) return [];
-    return personaList.filter((persona) =>
+    if (!availablePersonas) return [];
+    return availablePersonas.filter((persona) =>
       persona.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [personaList, searchQuery]);
+  }, [availablePersonas, searchQuery]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     e.stopPropagation();
@@ -73,9 +74,12 @@ export function PersonaMessagesChart({
           highlightedIndex >= 0 &&
           highlightedIndex < filteredPersonaList.length
         ) {
-          setSelectedPersonaId(filteredPersonaList[highlightedIndex].id);
-          setSearchQuery("");
-          setHighlightedIndex(-1);
+          const filteredPersona = filteredPersonaList[highlightedIndex];
+          if (filteredPersona !== undefined) {
+            setSelectedPersonaId(filteredPersona.id);
+            setSearchQuery("");
+            setHighlightedIndex(-1);
+          }
         }
         break;
       case "Escape":
@@ -139,7 +143,7 @@ export function PersonaMessagesChart({
         <ThreeDotsLoader />
       </div>
     );
-  } else if (!personaList || hasError) {
+  } else if (!availablePersonas || hasError) {
     content = (
       <div className="h-80 text-red-600 text-bold flex flex-col">
         <p className="m-auto">Failed to fetch data...</p>

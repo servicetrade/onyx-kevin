@@ -1,14 +1,11 @@
 "use client";
 
 import * as Yup from "yup";
-import { Button } from "@/components/ui/button";
+import Button from "@/refresh-components/buttons/Button";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { Form, Formik } from "formik";
-import {
-  SelectorFormField,
-  TextFormField,
-} from "@/components/admin/connectors/Field";
+import { SelectorFormField, TextFormField } from "@/components/Field";
 import { UserGroup } from "@/lib/types";
 import { Scope } from "./types";
 import { PopupSpec } from "@/components/admin/connectors/Popup";
@@ -156,13 +153,8 @@ export const CreateRateLimitModal = ({
               type="number"
               placeholder=""
             />
-            <Button
-              type="submit"
-              variant="submit"
-              size="sm"
-              disabled={isSubmitting}
-            >
-              Create!
+            <Button type="submit" disabled={isSubmitting}>
+              Create
             </Button>
           </Form>
         )}

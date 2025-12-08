@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/table";
 import Text from "@/components/ui/text";
 import Title from "@/components/ui/title";
-import { Separator } from "@/components/ui/separator";
-import { DocumentSet } from "@/lib/types";
+import Separator from "@/refresh-components/Separator";
+import { DocumentSetSummary } from "@/lib/types";
 import { useState } from "react";
 import { useDocumentSets } from "./hooks";
 import { ConnectorTitle } from "@/components/admin/connectors/ConnectorTitle";
@@ -38,22 +38,81 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import CreateButton from "@/components/ui/createButton";
+import CreateButton from "@/refresh-components/buttons/CreateButton";
+import { SourceIcon } from "@/components/SourceIcon";
+import Link from "next/link";
 
 const numToDisplay = 50;
+
+// Component to display federated connectors with consistent styling
+const FederatedConnectorTitle = ({
+  federatedConnector,
+  showMetadata = true,
+  isLink = true,
+}: {
+  federatedConnector: any;
+  showMetadata?: boolean;
+  isLink?: boolean;
+}) => {
+  const sourceType = federatedConnector.source.replace(/^federated_/, "");
+
+  const mainSectionClassName = "text-blue-500 dark:text-blue-100 flex w-fit";
+  const mainDisplay = (
+    <>
+      <SourceIcon sourceType={sourceType as any} iconSize={16} />
+      <div className="ml-1 my-auto text-xs font-medium truncate">
+        {federatedConnector.name}
+      </div>
+      <Badge variant="outline" className="text-xs ml-2">
+        Federated
+      </Badge>
+    </>
+  );
+
+  return (
+    <div className="my-auto max-w-full">
+      {isLink ? (
+        <Link
+          className={mainSectionClassName}
+          href={`/admin/federated/${federatedConnector.id}`}
+        >
+          {mainDisplay}
+        </Link>
+      ) : (
+        <div className={mainSectionClassName}>{mainDisplay}</div>
+      )}
+      {showMetadata && Object.keys(federatedConnector.entities).length > 0 && (
+        <div className="text-[10px] mt-0.5 text-gray-600 dark:text-gray-400">
+          {Object.entries(federatedConnector.entities)
+            .filter(
+              ([_, value]) =>
+                value &&
+                (Array.isArray(value) ? value.length > 0 : String(value).trim())
+            )
+            .map(([key, value]) => (
+              <div key={key} className="truncate">
+                <i>{key}:</i>{" "}
+                {Array.isArray(value) ? value.join(", ") : String(value)}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const EditRow = ({
   documentSet,
   isEditable,
 }: {
-  documentSet: DocumentSet;
+  documentSet: DocumentSetSummary;
   isEditable: boolean;
 }) => {
   const router = useRouter();
 
   if (!isEditable) {
     return (
-      <div className="text-text-darkerfont-medium my-auto p-1">
+      <div className="text-text-darker font-medium my-auto p-1">
         {documentSet.name}
       </div>
     );
@@ -66,7 +125,7 @@ const EditRow = ({
           <TooltipTrigger asChild>
             <div
               className={`
-              text-text-darkerfont-medium my-auto p-1 hover:bg-accent-background flex items-center select-none
+              text-text-darker font-medium my-auto p-1 hover:bg-accent-background flex items-center select-none
               ${documentSet.is_up_to_date ? "cursor-pointer" : "cursor-default"}
             `}
               style={{ wordBreak: "normal", overflowWrap: "break-word" }}
@@ -96,11 +155,11 @@ const EditRow = ({
 };
 
 interface DocumentFeedbackTableProps {
-  documentSets: DocumentSet[];
+  documentSets: DocumentSetSummary[];
   refresh: () => void;
   refreshEditable: () => void;
   setPopup: (popupSpec: PopupSpec | null) => void;
-  editableDocumentSets: DocumentSet[];
+  editableDocumentSets: DocumentSetSummary[];
 }
 
 const DocumentSetTable = ({
@@ -162,28 +221,64 @@ const DocumentSetTable = ({
                   </TableCell>
                   <TableCell>
                     <div>
-                      {documentSet.cc_pair_descriptors.map(
-                        (ccPairDescriptor, ind) => {
+                      {/* Regular Connectors */}
+                      {documentSet.cc_pair_summaries.map(
+                        (ccPairSummary, ind) => {
                           return (
                             <div
                               className={
-                                ind !==
-                                documentSet.cc_pair_descriptors.length - 1
+                                ind !== documentSet.cc_pair_summaries.length - 1
                                   ? "mb-3"
                                   : ""
                               }
-                              key={ccPairDescriptor.id}
+                              key={ccPairSummary.id}
                             >
-                              <ConnectorTitle
-                                connector={ccPairDescriptor.connector}
-                                ccPairName={ccPairDescriptor.name}
-                                ccPairId={ccPairDescriptor.id}
-                                showMetadata={false}
-                              />
+                              <div className="text-blue-500 dark:text-blue-100 flex w-fit">
+                                <SourceIcon
+                                  sourceType={ccPairSummary.source}
+                                  iconSize={16}
+                                />
+                                <div className="ml-1 my-auto text-xs font-medium truncate">
+                                  {ccPairSummary.name || "Unnamed"}
+                                </div>
+                              </div>
                             </div>
                           );
                         }
                       )}
+
+                      {/* Federated Connectors */}
+                      {documentSet.federated_connector_summaries &&
+                        documentSet.federated_connector_summaries.length >
+                          0 && (
+                          <>
+                            {documentSet.cc_pair_summaries.length > 0 && (
+                              <div className="mb-3" />
+                            )}
+                            {documentSet.federated_connector_summaries.map(
+                              (federatedConnector, ind) => {
+                                return (
+                                  <div
+                                    className={
+                                      ind !==
+                                      documentSet.federated_connector_summaries
+                                        .length -
+                                        1
+                                        ? "mb-3"
+                                        : ""
+                                    }
+                                    key={`federated-${federatedConnector.id}`}
+                                  >
+                                    <FederatedConnectorTitle
+                                      federatedConnector={federatedConnector}
+                                      showMetadata={true}
+                                    />
+                                  </div>
+                                );
+                              }
+                            )}
+                          </>
+                        )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -191,7 +286,10 @@ const DocumentSetTable = ({
                       <Badge variant="success" icon={FiCheckCircle}>
                         Up to Date
                       </Badge>
-                    ) : documentSet.cc_pair_descriptors.length > 0 ? (
+                    ) : documentSet.cc_pair_summaries.length > 0 ||
+                      (documentSet.federated_connector_summaries &&
+                        documentSet.federated_connector_summaries.length >
+                          0) ? (
                       <Badge variant="in_progress" icon={FiClock}>
                         Syncing
                       </Badge>
@@ -281,7 +379,11 @@ const Main = () => {
   } = useDocumentSets(true);
 
   if (isDocumentSetsLoading || isEditableDocumentSetsLoading) {
-    return <ThreeDotsLoader />;
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <ThreeDotsLoader />
+      </div>
+    );
   }
 
   if (documentSetsError || !documentSets) {
@@ -304,13 +406,9 @@ const Main = () => {
       <div className="mb-3"></div>
 
       <div className="flex mb-6">
-        <CreateButton
-          href="/admin/documents/sets/new"
-          text="New Document Set"
-        />
-        {/* <Link href="/admin/documents/sets/new">
-          <Button variant="navigate">New Document Set</Button>
-        </Link> */}
+        <CreateButton href="/admin/documents/sets/new">
+          New Document Set
+        </CreateButton>
       </div>
 
       {documentSets.length > 0 && (

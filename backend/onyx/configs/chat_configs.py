@@ -3,7 +3,6 @@ import os
 INPUT_PROMPT_YAML = "./onyx/seeding/input_prompts.yaml"
 PROMPTS_YAML = "./onyx/seeding/prompts.yaml"
 PERSONAS_YAML = "./onyx/seeding/personas.yaml"
-USER_FOLDERS_YAML = "./onyx/seeding/user_folders.yaml"
 NUM_RETURNED_HITS = 50
 # Used for LLM filtering and reranking
 # We want this to be approximately the number of results we want to show on the first page
@@ -90,7 +89,8 @@ STOP_STREAM_PAT = os.environ.get("STOP_STREAM_PAT") or None
 HARD_DELETE_CHATS = os.environ.get("HARD_DELETE_CHATS", "").lower() == "true"
 
 # Internet Search
-BING_API_KEY = os.environ.get("BING_API_KEY") or None
+NUM_INTERNET_SEARCH_RESULTS = int(os.environ.get("NUM_INTERNET_SEARCH_RESULTS") or 10)
+NUM_INTERNET_SEARCH_CHUNKS = int(os.environ.get("NUM_INTERNET_SEARCH_CHUNKS") or 50)
 
 # Enable in-house model for detecting connector-based filtering in queries
 ENABLE_CONNECTOR_CLASSIFIER = os.environ.get("ENABLE_CONNECTOR_CLASSIFIER", False)
@@ -102,3 +102,5 @@ USE_SEMANTIC_KEYWORD_EXPANSIONS_BASIC_SEARCH = (
     os.environ.get("USE_SEMANTIC_KEYWORD_EXPANSIONS_BASIC_SEARCH", "false").lower()
     == "true"
 )
+
+USE_DIV_CON_AGENT = os.environ.get("USE_DIV_CON_AGENT", "false").lower() == "true"

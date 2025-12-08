@@ -1,14 +1,15 @@
 import React, { useRef, useState } from "react";
 import Text from "@/components/ui/text";
 import { Callout } from "@/components/ui/callout";
-import { Button } from "@/components/ui/button";
+import Button from "@/refresh-components/buttons/Button";
 import { Formik, Form } from "formik";
 import * as Yup from "yup";
-import { Label, TextFormField } from "@/components/admin/connectors/Field";
+import { Label, TextFormField } from "@/components/Field";
 import { LoadingAnimation } from "@/components/Loading";
 import {
   CloudEmbeddingProvider,
   EmbeddingProvider,
+  getFormattedProviderName,
 } from "../../../../components/embedding/interfaces";
 import { EMBEDDING_PROVIDERS_ADMIN_URL } from "../../configuration/llm/constants";
 import { Modal } from "@/components/Modal";
@@ -33,7 +34,8 @@ export function ProviderCreationModal({
   isProxy?: boolean;
   isAzure?: boolean;
 }) {
-  const useFileUpload = selectedProvider.provider_type == "Google";
+  const useFileUpload =
+    selectedProvider.provider_type == EmbeddingProvider.GOOGLE;
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -182,7 +184,9 @@ export function ProviderCreationModal({
 
   return (
     <Modal
-      title={`Configure ${selectedProvider.provider_type}`}
+      title={`Configure ${getFormattedProviderName(
+        selectedProvider.provider_type
+      )}`}
       onOutsideClick={onCancel}
       icon={selectedProvider.icon}
     >
@@ -292,12 +296,7 @@ export function ProviderCreationModal({
                 </Callout>
               )}
 
-              <Button
-                type="submit"
-                variant="submit"
-                className="w-full"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isProcessing ? (
                   <LoadingAnimation />
                 ) : existingProvider ? (

@@ -8,23 +8,30 @@ import {
   updateDocumentSet,
   DocumentSetCreationRequest,
 } from "./lib";
-import { ConnectorStatus, DocumentSet, UserGroup, UserRole } from "@/lib/types";
-import { TextFormField } from "@/components/admin/connectors/Field";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
+import {
+  ConnectorStatus,
+  DocumentSetSummary,
+  UserGroup,
+  UserRole,
+  FederatedConnectorConfig,
+} from "@/lib/types";
+import { TextFormField } from "@/components/Field";
+import Button from "@/refresh-components/buttons/Button";
 import { usePaidEnterpriseFeaturesEnabled } from "@/components/settings/usePaidEnterpriseFeaturesEnabled";
 import { IsPublicGroupSelector } from "@/components/IsPublicGroupSelector";
 import React, { useEffect, useState } from "react";
 import { useUser } from "@/components/user/UserProvider";
 import { ConnectorMultiSelect } from "@/components/ConnectorMultiSelect";
 import { NonSelectableConnectors } from "@/components/NonSelectableConnectors";
+import { FederatedConnectorSelector } from "@/components/FederatedConnectorSelector";
+import { useFederatedConnectors } from "@/lib/hooks";
 
 interface SetCreationPopupProps {
   ccPairs: ConnectorStatus<any, any>[];
   userGroups: UserGroup[] | undefined;
   onClose: () => void;
   setPopup: (popupSpec: PopupSpec | null) => void;
-  existingDocumentSet?: DocumentSet;
+  existingDocumentSet?: DocumentSetSummary;
 }
 
 export const DocumentSetCreationForm = ({
@@ -38,6 +45,7 @@ export const DocumentSetCreationForm = ({
   const isUpdate = existingDocumentSet !== undefined;
   const [localCcPairs, setLocalCcPairs] = useState(ccPairs);
   const { user } = useUser();
+  const { data: federatedConnectors } = useFederatedConnectors();
 
   useEffect(() => {
     if (existingDocumentSet?.is_public) {
@@ -52,20 +60,42 @@ export const DocumentSetCreationForm = ({
           name: existingDocumentSet?.name ?? "",
           description: existingDocumentSet?.description ?? "",
           cc_pair_ids:
-            existingDocumentSet?.cc_pair_descriptors.map(
-              (ccPairDescriptor) => ccPairDescriptor.id
+            existingDocumentSet?.cc_pair_summaries.map(
+              (ccPairSummary) => ccPairSummary.id
             ) ?? [],
           is_public: existingDocumentSet?.is_public ?? true,
           users: existingDocumentSet?.users ?? [],
           groups: existingDocumentSet?.groups ?? [],
+          federated_connectors:
+            existingDocumentSet?.federated_connector_summaries?.map((fc) => ({
+              federated_connector_id: fc.id,
+              entities: fc.entities,
+            })) ?? [],
         }}
-        validationSchema={Yup.object().shape({
-          name: Yup.string().required("Please enter a name for the set"),
-          description: Yup.string().optional(),
-          cc_pair_ids: Yup.array()
-            .of(Yup.number().required())
-            .required("Please select at least one connector"),
-        })}
+        validationSchema={Yup.object()
+          .shape({
+            name: Yup.string().required("Please enter a name for the set"),
+            description: Yup.string().optional(),
+            cc_pair_ids: Yup.array().of(Yup.number().required()),
+            federated_connectors: Yup.array().of(
+              Yup.object().shape({
+                federated_connector_id: Yup.number().required(),
+                entities: Yup.object().required(),
+              })
+            ),
+          })
+          .test(
+            "at-least-one-connector",
+            "Please select at least one connector (regular or federated)",
+            function (values) {
+              const hasRegularConnectors =
+                values.cc_pair_ids && values.cc_pair_ids.length > 0;
+              const hasFederatedConnectors =
+                values.federated_connectors &&
+                values.federated_connectors.length > 0;
+              return hasRegularConnectors || hasFederatedConnectors;
+            }
+          )}
         onSubmit={async (values, formikHelpers) => {
           formikHelpers.setSubmitting(true);
           // If the document set is public, then we don't want to send any groups
@@ -148,7 +178,6 @@ export const DocumentSetCreationForm = ({
                   name="name"
                   label="Name:"
                   placeholder="A name for the document set"
-                  disabled={isUpdate}
                   autoCompleteDisabled={true}
                 />
                 <TextFormField
@@ -167,7 +196,7 @@ export const DocumentSetCreationForm = ({
                 )}
               </div>
 
-              <Separator className="my-6" />
+              <div className="my-6 border-t border-border-02" />
 
               <div className="space-y-6">
                 {user?.role === UserRole.CURATOR ? (
@@ -211,14 +240,34 @@ export const DocumentSetCreationForm = ({
                     placeholder="Search for connectors..."
                   />
                 )}
+
+                {/* Federated Connectors Section */}
+                {federatedConnectors && federatedConnectors.length > 0 && (
+                  <>
+                    <div className="my-4 border-t border-border-02" />
+                    <FederatedConnectorSelector
+                      name="federated_connectors"
+                      label="Federated Connectors"
+                      federatedConnectors={federatedConnectors}
+                      selectedConfigs={props.values.federated_connectors}
+                      onChange={(selectedConfigs) => {
+                        props.setFieldValue(
+                          "federated_connectors",
+                          selectedConfigs
+                        );
+                      }}
+                      placeholder="Search for federated connectors..."
+                    />
+                  </>
+                )}
               </div>
 
-              <div className="flex mt-6 pt-4 border-t border-neutral-200">
+              <div className="flex mt-6 pt-4 border-t border-border-02">
                 <Button
                   type="submit"
-                  variant="submit"
                   disabled={props.isSubmitting}
-                  className="w-56 mx-auto py-1.5 h-auto text-sm"
+                  className="w-56 mx-auto"
+                  primary
                 >
                   {isUpdate ? "Update Document Set" : "Create Document Set"}
                 </Button>

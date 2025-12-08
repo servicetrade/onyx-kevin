@@ -10,6 +10,8 @@ from onyx.configs.constants import DocumentSource
 from onyx.connectors.confluence.connector import ConfluenceConnector
 from onyx.connectors.credentials_provider import OnyxStaticCredentialsProvider
 from onyx.db.models import ConnectorCredentialPair
+from onyx.db.utils import DocumentRow
+from onyx.db.utils import SortOrder
 from tests.daily.connectors.utils import load_all_docs_from_checkpoint_connector
 
 
@@ -41,6 +43,7 @@ def confluence_connector() -> ConfluenceConnector:
 def test_confluence_connector_permissions(
     mock_get_api_key: MagicMock,
     confluence_connector: ConfluenceConnector,
+    set_ee_on: None,
 ) -> None:
     # Get all doc IDs from the full connector
     all_full_doc_ids = set()
@@ -51,7 +54,7 @@ def test_confluence_connector_permissions(
 
     # Get all doc IDs from the slim connector
     all_slim_doc_ids = set()
-    for slim_doc_batch in confluence_connector.retrieve_all_slim_documents():
+    for slim_doc_batch in confluence_connector.retrieve_all_slim_docs_perm_sync():
         all_slim_doc_ids.update([doc.id for doc in slim_doc_batch])
 
     # Find IDs that are in full but not in slim
@@ -71,6 +74,7 @@ def test_confluence_connector_permissions(
 def test_confluence_connector_restriction_handling(
     mock_get_api_key: MagicMock,
     mock_db_provider_class: MagicMock,
+    set_ee_on: None,
 ) -> None:
     # Test space key
     test_space_key = "DailyPermS"
@@ -99,7 +103,17 @@ def test_confluence_connector_restriction_handling(
     mock_cc_pair.credential_id = 1
 
     # Call the confluence_doc_sync function directly with the mock cc_pair
-    doc_access_generator = confluence_doc_sync(mock_cc_pair, lambda: [], None)
+    def mock_fetch_all_docs_fn(
+        sort_order: SortOrder | None = None,
+    ) -> list[DocumentRow]:
+        return []
+
+    def mock_fetch_all_docs_ids_fn() -> list[str]:
+        return []
+
+    doc_access_generator = confluence_doc_sync(
+        mock_cc_pair, mock_fetch_all_docs_fn, mock_fetch_all_docs_ids_fn, None
+    )
     doc_access_list = list(doc_access_generator)
     assert len(doc_access_list) == 7
     assert all(
@@ -117,15 +131,15 @@ def test_confluence_connector_restriction_handling(
     }
 
     # if restriction is applied, only should be visible to shared users / groups
-    restricted_emails = {"chris@onyx.app", "hagen@danswer.ai"}
+    restricted_emails = {"chris@onyx.app", "hagen@danswer.ai", "oauth@onyx.app"}
     restricted_user_groups = {"confluence-admins-danswerai"}
 
-    extra_restricted_emails = {"chris@onyx.app"}
+    extra_restricted_emails = {"chris@onyx.app", "oauth@onyx.app"}
     extra_restricted_user_groups: set[str] = set()
 
     # note that this is only allowed since yuhong@onyx.app is a member of the
     # confluence-admins-danswerai group
-    special_restricted_emails = {"chris@onyx.app", "yuhong@onyx.app"}
+    special_restricted_emails = {"chris@onyx.app", "yuhong@onyx.app", "oauth@onyx.app"}
     special_restricted_user_groups: set[str] = set()
 
     # Check Root+Page+2 is public

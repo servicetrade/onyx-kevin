@@ -44,7 +44,9 @@ export async function updateConnectorCredentialPairName(
   newName: string
 ): Promise<Response> {
   return fetch(
-    `/api/manage/admin/cc-pair/${ccPairId}/name?new_name=${encodeURIComponent(newName)}`,
+    `/api/manage/admin/cc-pair/${ccPairId}/name?new_name=${encodeURIComponent(
+      newName
+    )}`,
     {
       method: "PUT",
       headers: {
@@ -135,6 +137,7 @@ export async function deleteConnectorIfExistsAndIsUnlinked({
     );
     if (
       matchingConnectors.length > 0 &&
+      matchingConnectors[0] &&
       matchingConnectors[0].credential_ids.length === 0
     ) {
       const errorMsg = await deleteConnector(matchingConnectors[0].id);

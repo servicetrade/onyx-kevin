@@ -14,23 +14,23 @@ from pydantic import BaseModel
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ee.onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_ID
-from ee.onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET
 from ee.onyx.server.oauth.api_router import router
 from onyx.auth.users import current_admin_user
 from onyx.configs.app_configs import DEV_MODE
+from onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_ID
+from onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET
 from onyx.configs.app_configs import WEB_DOMAIN
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.confluence.utils import CONFLUENCE_OAUTH_TOKEN_URL
 from onyx.db.credentials import create_credential
 from onyx.db.credentials import fetch_credential_by_id_for_user
 from onyx.db.credentials import update_credential_json
-from onyx.db.engine import get_current_tenant_id
-from onyx.db.engine import get_session
+from onyx.db.engine.sql_engine import get_session
 from onyx.db.models import User
 from onyx.redis.redis_pool import get_redis_client
 from onyx.server.documents.models import CredentialBase
 from onyx.utils.logger import setup_logger
+from shared_configs.contextvars import get_current_tenant_id
 
 logger = setup_logger()
 
@@ -76,6 +76,7 @@ class ConfluenceCloudOAuth:
         "read:confluence-content.permission%20"
         "read:confluence-user%20"
         "read:confluence-groups%20"
+        "read:space:confluence%20"
         "readonly:content.attachment:confluence%20"
         "search:confluence%20"
         # granular scope

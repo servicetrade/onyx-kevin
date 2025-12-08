@@ -30,6 +30,8 @@ PUBLIC_ENDPOINT_SPECS = [
     ("/auth/type", {"GET"}),
     # just gets the version of Onyx (e.g. 0.3.11)
     ("/version", {"GET"}),
+    # Gets stable and beta versions for Onyx docker images
+    ("/versions", {"GET"}),
     # stuff related to basic auth
     ("/auth/refresh", {"POST"}),
     ("/auth/register", {"POST"}),
@@ -47,6 +49,14 @@ PUBLIC_ENDPOINT_SPECS = [
     # oauth
     ("/auth/oauth/authorize", {"GET"}),
     ("/auth/oauth/callback", {"GET"}),
+    # oidc
+    ("/auth/oidc/authorize", {"GET"}),
+    ("/auth/oidc/callback", {"GET"}),
+    # saml
+    ("/auth/saml/authorize", {"GET"}),
+    ("/auth/saml/callback", {"POST"}),
+    ("/auth/saml/callback", {"GET"}),
+    ("/auth/saml/logout", {"POST"}),
     # anonymous user on cloud
     ("/tenants/anonymous-user", {"POST"}),
     ("/metrics", {"GET"}),  # added by prometheus_fastapi_instrumentator

@@ -1,3 +1,6 @@
+from datetime import datetime
+from datetime import timezone
+
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -11,14 +14,17 @@ from onyx.connectors.models import IndexAttemptMetadata
 from onyx.db.connector_credential_pair import get_connector_credential_pair_from_id
 from onyx.db.document import get_documents_by_cc_pair
 from onyx.db.document import get_ingestion_documents
-from onyx.db.engine import get_session
+from onyx.db.engine.sql_engine import get_session
 from onyx.db.models import User
 from onyx.db.search_settings import get_active_search_settings
 from onyx.db.search_settings import get_current_search_settings
 from onyx.db.search_settings import get_secondary_search_settings
 from onyx.document_index.factory import get_default_document_index
+from onyx.indexing.adapters.document_indexing_adapter import (
+    DocumentIndexingBatchAdapter,
+)
 from onyx.indexing.embedder import DefaultIndexingEmbedder
-from onyx.indexing.indexing_pipeline import build_indexing_pipeline
+from onyx.indexing.indexing_pipeline import run_indexing_pipeline
 from onyx.natural_language_processing.search_nlp_models import (
     InformationContentClassificationModel,
 )
@@ -77,6 +83,9 @@ def upsert_ingestion_doc(
 
     doc_info.document.from_ingestion_api = True
 
+    if doc_info.document.doc_updated_at is None:
+        doc_info.document.doc_updated_at = datetime.now(tz=timezone.utc)
+
     document = Document.from_base(doc_info.document)
 
     # TODO once the frontend is updated with this enum, remove this logic
@@ -107,21 +116,28 @@ def upsert_ingestion_doc(
 
     information_content_classification_model = InformationContentClassificationModel()
 
-    indexing_pipeline = build_indexing_pipeline(
+    # Build adapter for primary indexing
+    adapter = DocumentIndexingBatchAdapter(
+        db_session=db_session,
+        connector_id=cc_pair.connector_id,
+        credential_id=cc_pair.credential_id,
+        tenant_id=tenant_id,
+        index_attempt_metadata=IndexAttemptMetadata(
+            connector_id=cc_pair.connector_id,
+            credential_id=cc_pair.credential_id,
+        ),
+    )
+
+    indexing_pipeline_result = run_indexing_pipeline(
         embedder=index_embedding_model,
         information_content_classification_model=information_content_classification_model,
         document_index=curr_doc_index,
         ignore_time_skip=True,
         db_session=db_session,
         tenant_id=tenant_id,
-    )
-
-    indexing_pipeline_result = indexing_pipeline(
         document_batch=[document],
-        index_attempt_metadata=IndexAttemptMetadata(
-            connector_id=cc_pair.connector_id,
-            credential_id=cc_pair.credential_id,
-        ),
+        request_id=None,
+        adapter=adapter,
     )
 
     # If there's a secondary index being built, index the doc but don't use it for return here
@@ -142,21 +158,16 @@ def upsert_ingestion_doc(
             active_search_settings.secondary, None
         )
 
-        sec_ind_pipeline = build_indexing_pipeline(
+        run_indexing_pipeline(
             embedder=new_index_embedding_model,
             information_content_classification_model=information_content_classification_model,
             document_index=sec_doc_index,
             ignore_time_skip=True,
             db_session=db_session,
             tenant_id=tenant_id,
-        )
-
-        sec_ind_pipeline(
             document_batch=[document],
-            index_attempt_metadata=IndexAttemptMetadata(
-                connector_id=cc_pair.connector_id,
-                credential_id=cc_pair.credential_id,
-            ),
+            request_id=None,
+            adapter=adapter,
         )
 
     return IngestionResult(

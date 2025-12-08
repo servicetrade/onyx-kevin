@@ -1,8 +1,8 @@
 import React from "react";
 import { Formik, Form } from "formik";
 import { Modal } from "@/components/Modal";
-import { Button } from "@/components/ui/button";
-import { TextFormField } from "../admin/connectors/Field";
+import Button from "@/refresh-components/buttons/Button";
+import { TextFormField } from "@/components/Field";
 import { EditIcon } from "../icons/icons";
 
 const EditPropertyModal = ({

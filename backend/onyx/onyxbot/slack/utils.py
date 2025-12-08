@@ -2,6 +2,7 @@ import logging
 import random
 import re
 import string
+import threading
 import time
 import uuid
 from collections.abc import Generator
@@ -20,24 +21,25 @@ from slack_sdk.socket_mode import SocketModeClient
 from onyx.configs.app_configs import DISABLE_TELEMETRY
 from onyx.configs.constants import ID_SEPARATOR
 from onyx.configs.constants import MessageType
-from onyx.configs.onyxbot_configs import DANSWER_BOT_FEEDBACK_VISIBILITY
-from onyx.configs.onyxbot_configs import DANSWER_BOT_MAX_QPM
-from onyx.configs.onyxbot_configs import DANSWER_BOT_MAX_WAIT_TIME
-from onyx.configs.onyxbot_configs import DANSWER_BOT_NUM_RETRIES
+from onyx.configs.onyxbot_configs import ONYX_BOT_FEEDBACK_VISIBILITY
+from onyx.configs.onyxbot_configs import ONYX_BOT_MAX_QPM
+from onyx.configs.onyxbot_configs import ONYX_BOT_MAX_WAIT_TIME
+from onyx.configs.onyxbot_configs import ONYX_BOT_NUM_RETRIES
 from onyx.configs.onyxbot_configs import (
-    DANSWER_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD,
+    ONYX_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD,
 )
 from onyx.configs.onyxbot_configs import (
-    DANSWER_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS,
+    ONYX_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS,
 )
 from onyx.connectors.slack.utils import SlackTextCleaner
-from onyx.db.engine import get_session_with_current_tenant
+from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from onyx.db.users import get_user_by_email
 from onyx.llm.exceptions import GenAIDisabledException
 from onyx.llm.factory import get_default_llms
 from onyx.llm.utils import dict_based_prompt_to_langchain_prompt
 from onyx.llm.utils import message_to_string
 from onyx.onyxbot.slack.constants import FeedbackVisibility
+from onyx.onyxbot.slack.models import ChannelType
 from onyx.onyxbot.slack.models import ThreadMessage
 from onyx.prompts.miscellaneous_prompts import SLACK_LANGUAGE_REPHRASE_PROMPT
 from onyx.utils.logger import setup_logger
@@ -48,17 +50,71 @@ from shared_configs.contextvars import CURRENT_TENANT_ID_CONTEXTVAR
 
 logger = setup_logger()
 
+slack_token_user_ids: dict[str, str | None] = {}
+slack_token_bot_ids: dict[str, str | None] = {}
+slack_token_lock = threading.Lock()
 
-_DANSWER_BOT_SLACK_BOT_ID: str | None = None
-_DANSWER_BOT_MESSAGE_COUNT: int = 0
-_DANSWER_BOT_COUNT_START_TIME: float = time.time()
+_ONYX_BOT_MESSAGE_COUNT: int = 0
+_ONYX_BOT_COUNT_START_TIME: float = time.time()
 
 
-def get_onyx_bot_slack_bot_id(web_client: WebClient) -> Any:
-    global _DANSWER_BOT_SLACK_BOT_ID
-    if _DANSWER_BOT_SLACK_BOT_ID is None:
-        _DANSWER_BOT_SLACK_BOT_ID = web_client.auth_test().get("user_id")
-    return _DANSWER_BOT_SLACK_BOT_ID
+def get_onyx_bot_auth_ids(
+    tenant_id: str, web_client: WebClient
+) -> tuple[str | None, str | None]:
+    """Returns a tuple of user_id and bot_id."""
+
+    user_id: str | None
+    bot_id: str | None
+
+    global slack_token_user_ids
+    global slack_token_bot_ids
+
+    with slack_token_lock:
+        user_id = slack_token_user_ids.get(tenant_id)
+        bot_id = slack_token_bot_ids.get(tenant_id)
+
+    if user_id is None or bot_id is None:
+        response = web_client.auth_test()
+        user_id = response.get("user_id")
+        bot_id = response.get("bot_id")
+        with slack_token_lock:
+            slack_token_user_ids[tenant_id] = user_id
+            slack_token_bot_ids[tenant_id] = bot_id
+
+    return user_id, bot_id
+
+
+def get_channel_type_from_id(web_client: WebClient, channel_id: str) -> ChannelType:
+    """
+    Get the channel type from a channel ID using Slack API.
+    Returns: ChannelType enum value
+    """
+    try:
+        channel_info = web_client.conversations_info(channel=channel_id)
+        if channel_info.get("ok") and channel_info.get("channel"):
+            channel: dict[str, Any] = channel_info.get("channel", {})
+
+            if channel.get("is_im"):
+                return ChannelType.IM  # Direct message
+            elif channel.get("is_mpim"):
+                return ChannelType.MPIM  # Multi-person direct message
+            elif channel.get("is_private"):
+                return ChannelType.PRIVATE_CHANNEL  # Private channel
+            elif channel.get("is_channel"):
+                return ChannelType.PUBLIC_CHANNEL  # Public channel
+            else:
+                logger.warning(
+                    f"Could not determine channel type for {channel_id}, defaulting to unknown"
+                )
+                return ChannelType.UNKNOWN
+        else:
+            logger.warning(f"Invalid channel info response for {channel_id}")
+            return ChannelType.UNKNOWN
+    except Exception as e:
+        logger.warning(
+            f"Error getting channel info for {channel_id}, defaulting to unknown: {e}"
+        )
+        return ChannelType.UNKNOWN
 
 
 def check_message_limit() -> bool:
@@ -67,22 +123,22 @@ def check_message_limit() -> bool:
     High traffic at the end of one period and start of another could cause
     the limit to be exceeded.
     """
-    if DANSWER_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD == 0:
+    if ONYX_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD <= 0:
         return True
-    global _DANSWER_BOT_MESSAGE_COUNT
-    global _DANSWER_BOT_COUNT_START_TIME
-    time_since_start = time.time() - _DANSWER_BOT_COUNT_START_TIME
-    if time_since_start > DANSWER_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS:
-        _DANSWER_BOT_MESSAGE_COUNT = 0
-        _DANSWER_BOT_COUNT_START_TIME = time.time()
-    if (_DANSWER_BOT_MESSAGE_COUNT + 1) > DANSWER_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD:
+    global _ONYX_BOT_MESSAGE_COUNT
+    global _ONYX_BOT_COUNT_START_TIME
+    time_since_start = time.time() - _ONYX_BOT_COUNT_START_TIME
+    if time_since_start > ONYX_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS:
+        _ONYX_BOT_MESSAGE_COUNT = 0
+        _ONYX_BOT_COUNT_START_TIME = time.time()
+    if (_ONYX_BOT_MESSAGE_COUNT + 1) > ONYX_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD:
         logger.error(
-            f"OnyxBot has reached the message limit {DANSWER_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD}"
-            f" for the time period {DANSWER_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS} seconds."
+            f"OnyxBot has reached the message limit {ONYX_BOT_RESPONSE_LIMIT_PER_TIME_PERIOD}"
+            f" for the time period {ONYX_BOT_RESPONSE_LIMIT_TIME_PERIOD_SECONDS} seconds."
             " These limits are configurable in backend/onyx/configs/onyxbot_configs.py"
         )
         return False
-    _DANSWER_BOT_MESSAGE_COUNT += 1
+    _ONYX_BOT_MESSAGE_COUNT += 1
     return True
 
 
@@ -104,7 +160,7 @@ def rephrase_slack_message(msg: str) -> str:
         return msg
     messages = _get_rephrase_message()
     filled_llm_prompt = dict_based_prompt_to_langchain_prompt(messages)
-    model_output = message_to_string(llm.invoke(filled_llm_prompt))
+    model_output = message_to_string(llm.invoke_langchain(filled_llm_prompt))
     logger.debug(model_output)
 
     return model_output
@@ -117,35 +173,38 @@ def update_emote_react(
     remove: bool,
     client: WebClient,
 ) -> None:
-    try:
-        if not message_ts:
-            logger.error(
-                f"Tried to remove a react in {channel} but no message specified"
-            )
-            return
+    if not message_ts:
+        action = "remove" if remove else "add"
+        logger.error(f"update_emote_react - no message specified: {channel=} {action=}")
+        return
 
-        if remove:
+    if remove:
+        try:
             client.reactions_remove(
                 name=emoji,
                 channel=channel,
                 timestamp=message_ts,
             )
-        else:
-            client.reactions_add(
-                name=emoji,
-                channel=channel,
-                timestamp=message_ts,
-            )
-    except SlackApiError as e:
-        if remove:
+        except SlackApiError as e:
             logger.error(f"Failed to remove Reaction due to: {e}")
-        else:
-            logger.error(f"Was not able to react to user message due to: {e}")
+
+        return
+
+    try:
+        client.reactions_add(
+            name=emoji,
+            channel=channel,
+            timestamp=message_ts,
+        )
+    except SlackApiError as e:
+        logger.error(f"Was not able to react to user message due to: {e}")
+
+    return
 
 
-def remove_onyx_bot_tag(message_str: str, client: WebClient) -> str:
-    bot_tag_id = get_onyx_bot_slack_bot_id(web_client=client)
-    return re.sub(rf"<@{bot_tag_id}>\s*", "", message_str)
+def remove_onyx_bot_tag(tenant_id: str, message_str: str, client: WebClient) -> str:
+    bot_token_user_id, _ = get_onyx_bot_auth_ids(tenant_id, web_client=client)
+    return re.sub(rf"<@{bot_token_user_id}>\s*", "", message_str)
 
 
 def _check_for_url_in_block(block: Block) -> bool:
@@ -183,7 +242,7 @@ def _build_error_block(error_message: str) -> Block:
 
 
 @retry(
-    tries=DANSWER_BOT_NUM_RETRIES,
+    tries=ONYX_BOT_NUM_RETRIES,
     delay=0.25,
     backoff=2,
     logger=cast(logging.Logger, logger),
@@ -215,7 +274,8 @@ def respond_in_thread_or_channel(
                 unfurl_media=unfurl,
             )
         except Exception as e:
-            logger.warning(f"Failed to post message: {e} \n blocks: {blocks}")
+            blocks_str = str(blocks)[:1024]  # truncate block logging
+            logger.warning(f"Failed to post message: {e} \n blocks: {blocks_str}")
             logger.warning("Trying again without blocks that have urls")
 
             if not blocks:
@@ -252,7 +312,8 @@ def respond_in_thread_or_channel(
                     unfurl_media=unfurl,
                 )
             except Exception as e:
-                logger.warning(f"Failed to post message: {e} \n blocks: {blocks}")
+                blocks_str = str(blocks)[:1024]  # truncate block logging
+                logger.warning(f"Failed to post message: {e} \n blocks: {blocks_str}")
                 logger.warning("Trying again without blocks that have urls")
 
                 if not blocks:
@@ -515,7 +576,7 @@ def fetch_user_semantic_id_from_id(
 
 
 def read_slack_thread(
-    channel: str, thread: str, client: WebClient
+    tenant_id: str, channel: str, thread: str, client: WebClient
 ) -> list[ThreadMessage]:
     thread_messages: list[ThreadMessage] = []
     response = client.conversations_replies(channel=channel, ts=thread)
@@ -529,9 +590,22 @@ def read_slack_thread(
             )
             message_type = MessageType.USER
         else:
-            self_slack_bot_id = get_onyx_bot_slack_bot_id(client)
             blocks: Any
-            if reply.get("user") == self_slack_bot_id:
+            is_onyx_bot_response = False
+
+            reply_user = reply.get("user")
+            reply_bot_id = reply.get("bot_id")
+
+            self_slack_bot_user_id, self_slack_bot_bot_id = get_onyx_bot_auth_ids(
+                tenant_id, client
+            )
+            if reply_user is not None and reply_user == self_slack_bot_user_id:
+                is_onyx_bot_response = True
+
+            if reply_bot_id is not None and reply_bot_id == self_slack_bot_bot_id:
+                is_onyx_bot_response = True
+
+            if is_onyx_bot_response:
                 # OnyxBot response
                 message_type = MessageType.ASSISTANT
                 user_sem_id = "Assistant"
@@ -573,7 +647,7 @@ def read_slack_thread(
                 logger.warning("Skipping Slack thread message, no text found")
                 continue
 
-        message = remove_onyx_bot_tag(message, client=client)
+        message = remove_onyx_bot_tag(tenant_id, message, client=client)
         thread_messages.append(
             ThreadMessage(message=message, sender=user_sem_id, role=message_type)
         )
@@ -605,8 +679,8 @@ def slack_usage_report(action: str, sender_id: str | None, client: WebClient) ->
 
 class SlackRateLimiter:
     def __init__(self) -> None:
-        self.max_qpm: int | None = DANSWER_BOT_MAX_QPM
-        self.max_wait_time = DANSWER_BOT_MAX_WAIT_TIME
+        self.max_qpm: int | None = ONYX_BOT_MAX_QPM
+        self.max_wait_time = ONYX_BOT_MAX_WAIT_TIME
         self.active_question = 0
         self.last_reset_time = time.time()
         self.waiting_questions: list[int] = []
@@ -666,7 +740,7 @@ class SlackRateLimiter:
 
 def get_feedback_visibility() -> FeedbackVisibility:
     try:
-        return FeedbackVisibility(DANSWER_BOT_FEEDBACK_VISIBILITY.lower())
+        return FeedbackVisibility(ONYX_BOT_FEEDBACK_VISIBILITY.lower())
     except ValueError:
         return FeedbackVisibility.PRIVATE
 
@@ -676,6 +750,7 @@ class TenantSocketModeClient(SocketModeClient):
         super().__init__(*args, **kwargs)
         self._tenant_id = tenant_id
         self.slack_bot_id = slack_bot_id
+        self.bot_name: str = "Unnamed"
 
     @contextmanager
     def _set_tenant_context(self) -> Generator[None, None, None]:

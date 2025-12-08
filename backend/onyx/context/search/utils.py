@@ -2,8 +2,7 @@ import string
 from collections.abc import Sequence
 from typing import TypeVar
 
-from nltk.corpus import stopwords  # type:ignore
-from nltk.tokenize import word_tokenize  # type:ignore
+from sqlalchemy.orm import Session
 
 from onyx.chat.models import SectionRelevancePiece
 from onyx.context.search.models import InferenceChunk
@@ -12,6 +11,15 @@ from onyx.context.search.models import SavedSearchDoc
 from onyx.context.search.models import SavedSearchDocWithContent
 from onyx.context.search.models import SearchDoc
 from onyx.db.models import SearchDoc as DBSearchDoc
+from onyx.db.search_settings import get_current_search_settings
+from onyx.natural_language_processing.search_nlp_models import EmbeddingModel
+from onyx.utils.logger import setup_logger
+from shared_configs.configs import MODEL_SERVER_HOST
+from shared_configs.configs import MODEL_SERVER_PORT
+from shared_configs.enums import EmbedTextType
+from shared_configs.model_server_models import Embedding
+
+logger = setup_logger()
 
 
 T = TypeVar(
@@ -108,41 +116,10 @@ def inference_section_from_chunks(
     )
 
 
-def chunks_or_sections_to_search_docs(
-    items: Sequence[InferenceChunk | InferenceSection] | None,
-) -> list[SearchDoc]:
-    if not items:
-        return []
-
-    search_docs = [
-        SearchDoc(
-            document_id=(
-                chunk := (
-                    item.center_chunk if isinstance(item, InferenceSection) else item
-                )
-            ).document_id,
-            chunk_ind=chunk.chunk_id,
-            semantic_identifier=chunk.semantic_identifier or "Unknown",
-            link=chunk.source_links[0] if chunk.source_links else None,
-            blurb=chunk.blurb,
-            source_type=chunk.source_type,
-            boost=chunk.boost,
-            hidden=chunk.hidden,
-            metadata=chunk.metadata,
-            score=chunk.score,
-            match_highlights=chunk.match_highlights,
-            updated_at=chunk.updated_at,
-            primary_owners=chunk.primary_owners,
-            secondary_owners=chunk.secondary_owners,
-            is_internet=False,
-        )
-        for item in items
-    ]
-
-    return search_docs
-
-
 def remove_stop_words_and_punctuation(keywords: list[str]) -> list[str]:
+    from nltk.corpus import stopwords  # type:ignore
+    from nltk.tokenize import word_tokenize  # type:ignore
+
     try:
         # Re-tokenize using the NLTK tokenizer for better matching
         query = " ".join(keywords)
@@ -154,5 +131,24 @@ def remove_stop_words_and_punctuation(keywords: list[str]) -> list[str]:
             if (word.casefold() not in stop_words and word not in string.punctuation)
         ]
         return text_trimmed or word_tokens
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Error removing stop words and punctuation: {e}")
         return keywords
+
+
+def get_query_embeddings(queries: list[str], db_session: Session) -> list[Embedding]:
+    search_settings = get_current_search_settings(db_session)
+
+    model = EmbeddingModel.from_db_model(
+        search_settings=search_settings,
+        # The below are globally set, this flow always uses the indexing one
+        server_host=MODEL_SERVER_HOST,
+        server_port=MODEL_SERVER_PORT,
+    )
+
+    query_embedding = model.encode(queries, text_type=EmbedTextType.QUERY)
+    return query_embedding
+
+
+def get_query_embedding(query: str, db_session: Session) -> Embedding:
+    return get_query_embeddings([query], db_session)[0]

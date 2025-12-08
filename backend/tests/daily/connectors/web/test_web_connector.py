@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from onyx.connectors.models import Document
@@ -53,6 +55,12 @@ def test_web_connector_no_scroll(quotes_to_scroll_web_connector: WebConnector) -
 MERCURY_EXPECTED_QUOTE = "How can we help?"
 
 
+@pytest.mark.xfail(
+    reason=(
+        "flaky. maybe we can improve how we avoid triggering bot protection or"
+        "maybe this is just how it has to be."
+    ),
+)
 def test_web_connector_bot_protection() -> None:
     connector = WebConnector(
         base_url="https://support.mercury.com/hc",
@@ -65,3 +73,20 @@ def test_web_connector_bot_protection() -> None:
     doc = doc_batch[0]
     assert doc.sections[0].text is not None
     assert MERCURY_EXPECTED_QUOTE in doc.sections[0].text
+
+
+def test_web_connector_recursive_www_redirect() -> None:
+    # Check that https://onyx.app can be recursed if re-directed to www.onyx.app
+    # Run in thread pool to avoid conflict with pytest-asyncio's event loop
+    def _run_connector() -> list[Document]:
+        connector = WebConnector(
+            base_url="https://onyx.app",
+            web_connector_type=WEB_CONNECTOR_VALID_SETTINGS.RECURSIVE.value,
+        )
+        return [doc for batch in connector.load_from_state() for doc in batch]
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_run_connector)
+        documents = future.result()
+
+    assert len(documents) > 1

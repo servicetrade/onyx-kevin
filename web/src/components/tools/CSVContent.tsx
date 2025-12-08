@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { ContentComponentProps } from "./ExpandableContentWrapper";
 import { WarningCircle } from "@phosphor-icons/react";
+import SimpleLoader from "@/refresh-components/loaders/SimpleLoader";
 
 const CsvContent: React.FC<ContentComponentProps> = ({
   fileDescriptor,
@@ -19,12 +20,14 @@ const CsvContent: React.FC<ContentComponentProps> = ({
 }) => {
   const [data, setData] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
+  const [isFetching, setIsFetching] = useState(true);
 
   useEffect(() => {
     fetchCSV(fileDescriptor.id);
   }, [fileDescriptor.id]);
 
   const fetchCSV = async (id: string) => {
+    setIsFetching(true);
     try {
       const response = await fetch(`api/chat/file/${id}`);
       if (!response.ok) {
@@ -43,14 +46,21 @@ const CsvContent: React.FC<ContentComponentProps> = ({
 
       const csvData = await response.text();
       const rows = csvData.trim().split("\n");
-      const parsedHeaders = rows[0].split(",");
+      const firstRow = rows[0];
+      if (!firstRow) {
+        throw new Error("CSV file is empty");
+      }
+      const parsedHeaders = firstRow.split(",");
       setHeaders(parsedHeaders);
 
       const parsedData: Record<string, string>[] = rows.slice(1).map((row) => {
         const values = row.split(",");
         return parsedHeaders.reduce<Record<string, string>>(
           (obj, header, index) => {
-            obj[header] = values[index];
+            const val = values[index];
+            if (val !== undefined) {
+              obj[header] = val;
+            }
             return obj;
           },
           {}
@@ -61,25 +71,15 @@ const CsvContent: React.FC<ContentComponentProps> = ({
       console.error("Error fetching CSV file:", error);
       setData([]);
       setHeaders([]);
+    } finally {
+      setIsFetching(false);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isFetching) {
     return (
       <div className="flex items-center justify-center h-[300px]">
-        <div className="animate-pulse flex space-x-4">
-          <div className="rounded-full bg-background-200 h-10 w-10"></div>
-          <div className="w-full flex-1 space-y-4 py-1">
-            <div className="h-2 w-full bg-background-200 rounded"></div>
-            <div className="w-full space-y-3">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="h-2 bg-background-200 rounded col-span-2"></div>
-                <div className="h-2 bg-background-200 rounded col-span-1"></div>
-              </div>
-              <div className="h-2 bg-background-200 rounded"></div>
-            </div>
-          </div>
-        </div>
+        <SimpleLoader />
       </div>
     );
   }

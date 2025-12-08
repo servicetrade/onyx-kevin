@@ -3,19 +3,31 @@ from typing import Any
 from typing import List
 from urllib.parse import urlparse
 
-from shared_configs.model_server_models import SupportedEmbeddingModel
-
 # Used for logging
 SLACK_CHANNEL_ID = "channel_id"
 
-MODEL_SERVER_HOST = os.environ.get("MODEL_SERVER_HOST") or "localhost"
-MODEL_SERVER_ALLOWED_HOST = os.environ.get("MODEL_SERVER_HOST") or "0.0.0.0"
+# Skip model warmup at startup
+# Default to True (skip warmup) if not set, otherwise respect the value
+SKIP_WARM_UP = os.environ.get("SKIP_WARM_UP", "true").lower() == "true"
+
+# Check if model server is disabled
+DISABLE_MODEL_SERVER = os.environ.get("DISABLE_MODEL_SERVER", "").lower() == "true"
+
+# If model server is disabled, use "disabled" as host to trigger proper handling
+if DISABLE_MODEL_SERVER:
+    MODEL_SERVER_HOST = "disabled"
+    MODEL_SERVER_ALLOWED_HOST = "disabled"
+    INDEXING_MODEL_SERVER_HOST = "disabled"
+else:
+    MODEL_SERVER_HOST = os.environ.get("MODEL_SERVER_HOST") or "localhost"
+    MODEL_SERVER_ALLOWED_HOST = os.environ.get("MODEL_SERVER_HOST") or "0.0.0.0"
+    INDEXING_MODEL_SERVER_HOST = (
+        os.environ.get("INDEXING_MODEL_SERVER_HOST") or MODEL_SERVER_HOST
+    )
+
 MODEL_SERVER_PORT = int(os.environ.get("MODEL_SERVER_PORT") or "9000")
 # Model server for indexing should use a separate one to not allow indexing to introduce delay
 # for inference
-INDEXING_MODEL_SERVER_HOST = (
-    os.environ.get("INDEXING_MODEL_SERVER_HOST") or MODEL_SERVER_HOST
-)
 INDEXING_MODEL_SERVER_PORT = int(
     os.environ.get("INDEXING_MODEL_SERVER_PORT") or MODEL_SERVER_PORT
 )
@@ -142,6 +154,8 @@ else:
 # Multi-tenancy configuration
 MULTI_TENANT = os.environ.get("MULTI_TENANT", "").lower() == "true"
 
+# Outside this file, should almost always use `POSTGRES_DEFAULT_SCHEMA` unless you
+# have a very good reason
 POSTGRES_DEFAULT_SCHEMA_STANDARD_VALUE = "public"
 POSTGRES_DEFAULT_SCHEMA = (
     os.environ.get("POSTGRES_DEFAULT_SCHEMA") or POSTGRES_DEFAULT_SCHEMA_STANDARD_VALUE
@@ -158,132 +172,45 @@ TENANT_ID_PREFIX = "tenant_"
 
 DISALLOWED_SLACK_BOT_TENANT_IDS = os.environ.get("DISALLOWED_SLACK_BOT_TENANT_IDS")
 DISALLOWED_SLACK_BOT_TENANT_LIST = (
-    [tenant.strip() for tenant in DISALLOWED_SLACK_BOT_TENANT_IDS.split(",")]
+    [
+        tenant.strip()
+        for tenant in DISALLOWED_SLACK_BOT_TENANT_IDS.split(",")
+        if tenant.strip()
+    ]
     if DISALLOWED_SLACK_BOT_TENANT_IDS
     else None
 )
 
 IGNORED_SYNCING_TENANT_IDS = os.environ.get("IGNORED_SYNCING_TENANT_IDS")
 IGNORED_SYNCING_TENANT_LIST = (
-    [tenant.strip() for tenant in IGNORED_SYNCING_TENANT_IDS.split(",")]
+    [
+        tenant.strip()
+        for tenant in IGNORED_SYNCING_TENANT_IDS.split(",")
+        if tenant.strip()
+    ]
     if IGNORED_SYNCING_TENANT_IDS
     else None
 )
 
-SUPPORTED_EMBEDDING_MODELS = [
-    # Cloud-based models
-    SupportedEmbeddingModel(
-        name="cohere/embed-english-v3.0",
-        dim=1024,
-        index_name="danswer_chunk_cohere_embed_english_v3_0",
-    ),
-    SupportedEmbeddingModel(
-        name="cohere/embed-english-v3.0",
-        dim=1024,
-        index_name="danswer_chunk_embed_english_v3_0",
-    ),
-    SupportedEmbeddingModel(
-        name="cohere/embed-english-light-v3.0",
-        dim=384,
-        index_name="danswer_chunk_cohere_embed_english_light_v3_0",
-    ),
-    SupportedEmbeddingModel(
-        name="cohere/embed-english-light-v3.0",
-        dim=384,
-        index_name="danswer_chunk_embed_english_light_v3_0",
-    ),
-    SupportedEmbeddingModel(
-        name="openai/text-embedding-3-large",
-        dim=3072,
-        index_name="danswer_chunk_openai_text_embedding_3_large",
-    ),
-    SupportedEmbeddingModel(
-        name="openai/text-embedding-3-large",
-        dim=3072,
-        index_name="danswer_chunk_text_embedding_3_large",
-    ),
-    SupportedEmbeddingModel(
-        name="openai/text-embedding-3-small",
-        dim=1536,
-        index_name="danswer_chunk_openai_text_embedding_3_small",
-    ),
-    SupportedEmbeddingModel(
-        name="openai/text-embedding-3-small",
-        dim=1536,
-        index_name="danswer_chunk_text_embedding_3_small",
-    ),
-    SupportedEmbeddingModel(
-        name="google/text-embedding-005",
-        dim=768,
-        index_name="danswer_chunk_google_text_embedding_004",
-    ),
-    SupportedEmbeddingModel(
-        name="google/text-embedding-005",
-        dim=768,
-        index_name="danswer_chunk_text_embedding_004",
-    ),
-    SupportedEmbeddingModel(
-        name="google/textembedding-gecko@003",
-        dim=768,
-        index_name="danswer_chunk_google_textembedding_gecko_003",
-    ),
-    SupportedEmbeddingModel(
-        name="google/textembedding-gecko@003",
-        dim=768,
-        index_name="danswer_chunk_textembedding_gecko_003",
-    ),
-    SupportedEmbeddingModel(
-        name="voyage/voyage-large-2-instruct",
-        dim=1024,
-        index_name="danswer_chunk_voyage_large_2_instruct",
-    ),
-    SupportedEmbeddingModel(
-        name="voyage/voyage-large-2-instruct",
-        dim=1024,
-        index_name="danswer_chunk_large_2_instruct",
-    ),
-    SupportedEmbeddingModel(
-        name="voyage/voyage-light-2-instruct",
-        dim=384,
-        index_name="danswer_chunk_voyage_light_2_instruct",
-    ),
-    SupportedEmbeddingModel(
-        name="voyage/voyage-light-2-instruct",
-        dim=384,
-        index_name="danswer_chunk_light_2_instruct",
-    ),
-    # Self-hosted models
-    SupportedEmbeddingModel(
-        name="nomic-ai/nomic-embed-text-v1",
-        dim=768,
-        index_name="danswer_chunk_nomic_ai_nomic_embed_text_v1",
-    ),
-    SupportedEmbeddingModel(
-        name="nomic-ai/nomic-embed-text-v1",
-        dim=768,
-        index_name="danswer_chunk_nomic_embed_text_v1",
-    ),
-    SupportedEmbeddingModel(
-        name="intfloat/e5-base-v2",
-        dim=768,
-        index_name="danswer_chunk_intfloat_e5_base_v2",
-    ),
-    SupportedEmbeddingModel(
-        name="intfloat/e5-small-v2",
-        dim=384,
-        index_name="danswer_chunk_intfloat_e5_small_v2",
-    ),
-    SupportedEmbeddingModel(
-        name="intfloat/multilingual-e5-base",
-        dim=768,
-        index_name="danswer_chunk_intfloat_multilingual_e5_base",
-    ),
-    SupportedEmbeddingModel(
-        name="intfloat/multilingual-e5-small",
-        dim=384,
-        index_name="danswer_chunk_intfloat_multilingual_e5_small",
-    ),
-]
+# Global flag to skip userfile threshold for all users/tenants
+SKIP_USERFILE_THRESHOLD = (
+    os.environ.get("SKIP_USERFILE_THRESHOLD", "").lower() == "true"
+)
+
+# Comma-separated list of specific tenant IDs to skip threshold (multi-tenant only)
+SKIP_USERFILE_THRESHOLD_TENANT_IDS = os.environ.get(
+    "SKIP_USERFILE_THRESHOLD_TENANT_IDS"
+)
+SKIP_USERFILE_THRESHOLD_TENANT_LIST = (
+    [
+        tenant.strip()
+        for tenant in SKIP_USERFILE_THRESHOLD_TENANT_IDS.split(",")
+        if tenant.strip()
+    ]
+    if SKIP_USERFILE_THRESHOLD_TENANT_IDS
+    else None
+)
+
 # Maximum (least severe) downgrade factor for chunks above the cutoff
 INDEXING_INFORMATION_CONTENT_CLASSIFICATION_MAX = float(
     os.environ.get("INDEXING_INFORMATION_CONTENT_CLASSIFICATION_MAX") or 1.0
@@ -301,3 +228,5 @@ INDEXING_INFORMATION_CONTENT_CLASSIFICATION_TEMPERATURE = float(
 INDEXING_INFORMATION_CONTENT_CLASSIFICATION_CUTOFF_LENGTH = int(
     os.environ.get("INDEXING_INFORMATION_CONTENT_CLASSIFICATION_CUTOFF_LENGTH") or 10
 )
+
+ENVIRONMENT = os.environ.get("ENVIRONMENT") or "not_explicitly_set"

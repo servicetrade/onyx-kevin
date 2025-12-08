@@ -7,14 +7,12 @@ from onyx.chat.models import PromptConfig
 from onyx.configs.model_configs import GEN_AI_SINGLE_USER_MESSAGE_EXPECTED_MAX_TOKENS
 from onyx.context.search.models import InferenceChunk
 from onyx.db.models import Persona
-from onyx.db.prompts import get_default_prompt
 from onyx.db.search_settings import get_multilingual_expansion
-from onyx.llm.factory import get_llms_for_persona
-from onyx.llm.factory import get_main_llm_from_tuple
+from onyx.file_store.models import InMemoryChatFile
+from onyx.llm.factory import get_llm_config_for_persona
 from onyx.llm.interfaces import LLMConfig
 from onyx.llm.utils import build_content_with_imgs
 from onyx.llm.utils import check_number_of_tokens
-from onyx.llm.utils import message_to_prompt_and_imgs
 from onyx.prompts.chat_prompts import REQUIRE_CITATION_STATEMENT
 from onyx.prompts.constants import DEFAULT_IGNORE_STATEMENT
 from onyx.prompts.direct_qa_prompts import CITATIONS_PROMPT
@@ -38,8 +36,8 @@ logger = setup_logger()
 def get_prompt_tokens(prompt_config: PromptConfig) -> int:
     # Note: currently custom prompts do not allow datetime aware, only default prompts
     return (
-        check_number_of_tokens(prompt_config.system_prompt)
-        + check_number_of_tokens(prompt_config.task_prompt)
+        check_number_of_tokens(prompt_config.default_behavior_system_prompt)
+        + check_number_of_tokens(prompt_config.reminder)
         + CHAT_USER_PROMPT_WITH_CONTEXT_OVERHEAD_TOKEN_CNT
         + CITATION_STATEMENT_TOKEN_CNT
         + CITATION_REMINDER_TOKEN_CNT
@@ -89,14 +87,15 @@ def compute_max_document_tokens(
 
 
 def compute_max_document_tokens_for_persona(
-    db_session: Session,
     persona: Persona,
+    db_session: Session,
     actual_user_input: str | None = None,
 ) -> int:
-    prompt = persona.prompts[0] if persona.prompts else get_default_prompt(db_session)
+    # Use the persona directly since prompts are now embedded
+    # Access to persona is assumed to have been verified already
     return compute_max_document_tokens(
-        prompt_config=PromptConfig.from_model(prompt),
-        llm_config=get_main_llm_from_tuple(get_llms_for_persona(persona)).config,
+        prompt_config=PromptConfig.from_model(persona, db_session=db_session),
+        llm_config=get_llm_config_for_persona(persona=persona, db_session=db_session),
         actual_user_input=actual_user_input,
     )
 
@@ -109,9 +108,9 @@ def compute_max_llm_input_tokens(llm_config: LLMConfig) -> int:
 def build_citations_system_message(
     prompt_config: PromptConfig,
 ) -> SystemMessage:
-    system_prompt = prompt_config.system_prompt.strip()
-    if prompt_config.include_citations:
-        system_prompt += REQUIRE_CITATION_STATEMENT
+    system_prompt = prompt_config.default_behavior_system_prompt.strip()
+    # Citations are always enabled
+    system_prompt += REQUIRE_CITATION_STATEMENT
     tag_handled_prompt = handle_onyx_date_awareness(
         system_prompt, prompt_config, add_additional_info_if_no_tag=True
     )
@@ -120,7 +119,8 @@ def build_citations_system_message(
 
 
 def build_citations_user_message(
-    message: HumanMessage,
+    user_query: str,
+    files: list[InMemoryChatFile],
     prompt_config: PromptConfig,
     context_docs: list[LlmDoc] | list[InferenceChunk],
     all_doc_useful: bool,
@@ -135,7 +135,6 @@ def build_citations_user_message(
     history_block = (
         HISTORY_BLOCK.format(history_str=history_message) if history_message else ""
     )
-    query, img_urls = message_to_prompt_and_imgs(message)
 
     if context_docs:
         context_docs_str = build_complete_context_str(context_docs)
@@ -146,7 +145,7 @@ def build_citations_user_message(
             optional_ignore_statement=optional_ignore,
             context_docs_str=context_docs_str,
             task_prompt=task_prompt_with_reminder,
-            user_query=query,
+            user_query=user_query,
             history_block=history_block,
         )
     else:
@@ -154,16 +153,17 @@ def build_citations_user_message(
         user_prompt = CITATIONS_PROMPT_FOR_TOOL_CALLING.format(
             context_type=context_type,
             task_prompt=task_prompt_with_reminder,
-            user_query=query,
+            user_query=user_query,
             history_block=history_block,
         )
 
     user_prompt = user_prompt.strip()
+    tag_handled_prompt = handle_onyx_date_awareness(user_prompt, prompt_config)
     user_msg = HumanMessage(
         content=(
-            build_content_with_imgs(user_prompt, img_urls=img_urls)
-            if img_urls
-            else user_prompt
+            build_content_with_imgs(tag_handled_prompt, files)
+            if files
+            else tag_handled_prompt
         )
     )
 

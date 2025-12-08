@@ -12,8 +12,7 @@ from sqlalchemy.sql import expression
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.elements import KeyedColumnElement
 
-from onyx.auth.invited_users import get_invited_users
-from onyx.auth.invited_users import write_invited_users
+from onyx.auth.invited_users import remove_user_from_invited_users
 from onyx.auth.schemas import UserRole
 from onyx.db.api_key import DANSWER_API_KEY_DUMMY_EMAIL_DOMAIN
 from onyx.db.models import DocumentSet__User
@@ -255,6 +254,9 @@ def add_slack_user_if_not_exists(db_session: Session, email: str) -> User:
 def _get_users_by_emails(
     db_session: Session, lower_emails: list[str]
 ) -> tuple[list[User], list[str]]:
+    """given a list of lowercase emails,
+    returns a list[User] of Users whose emails match and a list[str]
+    the missing emails that had no User"""
     stmt = select(User).filter(func.lower(User.email).in_(lower_emails))  # type: ignore
     found_users = list(db_session.scalars(stmt).unique().all())  # Convert to list
 
@@ -339,10 +341,4 @@ def delete_user_from_db(
 
     # NOTE: edge case may exist with race conditions
     # with this `invited user` scheme generally.
-    user_emails = get_invited_users()
-    remaining_users = [
-        remaining_user_email
-        for remaining_user_email in user_emails
-        if remaining_user_email != user_to_delete.email
-    ]
-    write_invited_users(remaining_users)
+    remove_user_from_invited_users(user_to_delete.email)

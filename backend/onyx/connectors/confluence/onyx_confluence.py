@@ -1,3 +1,17 @@
+"""
+# README (notes on Confluence pagination):
+
+We've noticed that the `search/users` and `users/memberof` endpoints for Confluence Cloud use offset-based pagination as
+opposed to cursor-based. We also know that page-retrieval uses cursor-based pagination.
+
+Our default pagination strategy right now for cloud is to assume cursor-based.
+However, if you notice that a cloud API is not being properly paginated (i.e., if the `_links.next` is not appearing in the
+returned payload), then you can force offset-based pagination.
+
+# TODO (@raunakab)
+We haven't explored all of the cloud APIs' pagination strategies. @raunakab take time to go through this and figure them out.
+"""
+
 import json
 import time
 from collections.abc import Callable
@@ -16,9 +30,9 @@ from atlassian import Confluence  # type:ignore
 from redis import Redis
 from requests import HTTPError
 
-from ee.onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_ID
-from ee.onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET
 from onyx.configs.app_configs import CONFLUENCE_CONNECTOR_USER_PROFILES_OVERRIDE
+from onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_ID
+from onyx.configs.app_configs import OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET
 from onyx.connectors.confluence.models import ConfluenceUser
 from onyx.connectors.confluence.user_profile_override import (
     process_confluence_user_profiles_override,
@@ -27,11 +41,11 @@ from onyx.connectors.confluence.utils import _handle_http_error
 from onyx.connectors.confluence.utils import confluence_refresh_tokens
 from onyx.connectors.confluence.utils import get_start_param_from_url
 from onyx.connectors.confluence.utils import update_param_in_path
+from onyx.connectors.cross_connector_utils.miscellaneous_utils import scoped_url
 from onyx.connectors.interfaces import CredentialsProviderInterface
 from onyx.file_processing.html_utils import format_document_soup
 from onyx.redis.redis_pool import get_redis_client
 from onyx.utils.logger import setup_logger
-from onyx.utils.threadpool_concurrency import run_with_timeout
 
 logger = setup_logger()
 
@@ -46,14 +60,14 @@ _REPLACEMENT_EXPANSIONS = "body.view.value"
 _USER_NOT_FOUND = "Unknown Confluence User"
 _USER_ID_TO_DISPLAY_NAME_CACHE: dict[str, str | None] = {}
 _USER_EMAIL_CACHE: dict[str, str | None] = {}
+_DEFAULT_PAGINATION_LIMIT = 1000
+
+_CONFLUENCE_SPACES_API_V1 = "rest/api/space"
+_CONFLUENCE_SPACES_API_V2 = "wiki/api/v2/spaces"
 
 
 class ConfluenceRateLimitError(Exception):
     pass
-
-
-_DEFAULT_PAGINATION_LIMIT = 1000
-_MINIMUM_PAGINATION_LIMIT = 50
 
 
 class OnyxConfluence:
@@ -76,16 +90,20 @@ class OnyxConfluence:
         url: str,
         credentials_provider: CredentialsProviderInterface,
         timeout: int | None = None,
+        scoped_token: bool = False,
         # should generally not be passed in, but making it overridable for
         # easier testing
         confluence_user_profiles_override: list[dict[str, str]] | None = (
             CONFLUENCE_CONNECTOR_USER_PROFILES_OVERRIDE
         ),
     ) -> None:
+        self.base_url = url  #'/'.join(url.rstrip("/").split("/")[:-1])
+        url = scoped_url(url, "confluence") if scoped_token else url
+
         self._is_cloud = is_cloud
         self._url = url.rstrip("/")
         self._credentials_provider = credentials_provider
-
+        self.scoped_token = scoped_token
         self.redis_client: Redis | None = None
         self.static_credentials: dict[str, Any] | None = None
         if self._credentials_provider.is_dynamic():
@@ -197,6 +215,97 @@ class OnyxConfluence:
             ]
         return oauth2_dict
 
+    def _build_spaces_url(
+        self,
+        is_v2: bool,
+        base_url: str,
+        limit: int,
+        space_keys: list[str] | None,
+        start: int | None = None,
+    ) -> str:
+        """Build URL for Confluence spaces API with query parameters."""
+        key_param = "keys" if is_v2 else "spaceKey"
+
+        params = [f"limit={limit}"]
+        if space_keys:
+            params.append(f"{key_param}={','.join(space_keys)}")
+        if start is not None and not is_v2:
+            params.append(f"start={start}")
+
+        return f"{base_url}?{'&'.join(params)}"
+
+    def _paginate_spaces_for_endpoint(
+        self,
+        is_v2: bool,
+        base_url: str,
+        limit: int,
+        space_keys: list[str] | None,
+    ) -> Iterator[dict[str, Any]]:
+        """Internal helper to paginate through spaces for a specific API endpoint."""
+        start = 0
+        url = self._build_spaces_url(
+            is_v2, base_url, limit, space_keys, start if not is_v2 else None
+        )
+
+        while url:
+            response = self.get(url, advanced_mode=True)
+            response.raise_for_status()
+            data = response.json()
+
+            results = data.get("results", [])
+            if not results:
+                return
+
+            yield from results
+
+            if is_v2:
+                url = data.get("_links", {}).get("next", "")
+            else:
+                if len(results) < limit:
+                    return
+                start += len(results)
+                url = self._build_spaces_url(is_v2, base_url, limit, space_keys, start)
+
+    def retrieve_confluence_spaces(
+        self,
+        space_keys: list[str] | None = None,
+        limit: int = 50,
+    ) -> Iterator[dict[str, str]]:
+        """
+        Retrieve spaces from Confluence using v2 API (Cloud) or v1 API (Server/fallback).
+
+        Args:
+            space_keys: Optional list of space keys to filter by
+            limit: Results per page (default 50)
+
+        Yields:
+            Space dictionaries with keys: id, key, name, type, status, etc.
+
+        Note:
+            For Cloud instances, attempts v2 API first. If v2 returns 404,
+            automatically falls back to v1 API for compatibility with older instances.
+        """
+        # Determine API version once
+        use_v2 = self._is_cloud and not self.scoped_token
+        base_url = _CONFLUENCE_SPACES_API_V2 if use_v2 else _CONFLUENCE_SPACES_API_V1
+
+        try:
+            yield from self._paginate_spaces_for_endpoint(
+                use_v2, base_url, limit, space_keys
+            )
+        except HTTPError as e:
+            if e.response.status_code == 404 and use_v2:
+                logger.warning(
+                    "v2 spaces API returned 404, falling back to v1 API. "
+                    "This may indicate an older Confluence Cloud instance."
+                )
+                # Fallback to v1
+                yield from self._paginate_spaces_for_endpoint(
+                    False, _CONFLUENCE_SPACES_API_V1, limit, space_keys
+                )
+            else:
+                raise
+
     def _probe_connection(
         self,
         **kwargs: Any,
@@ -207,59 +316,50 @@ class OnyxConfluence:
 
         with self._credentials_provider:
             credentials, _ = self._renew_credentials()
+            if self.scoped_token:
+                # v2 endpoint doesn't always work with scoped tokens, use v1
+                token = credentials["confluence_access_token"]
+                probe_url = f"{self.base_url}/{_CONFLUENCE_SPACES_API_V1}?limit=1"
+                import requests
 
-            # probe connection with direct client, no retries
-            if "confluence_refresh_token" in credentials:
-                logger.info("Probing Confluence with OAuth Access Token.")
-
-                oauth2_dict: dict[str, Any] = OnyxConfluence._make_oauth2_dict(
-                    credentials
-                )
-                url = (
-                    f"https://api.atlassian.com/ex/confluence/{credentials['cloud_id']}"
-                )
-                confluence_client_with_minimal_retries = Confluence(
-                    url=url, oauth2=oauth2_dict, **merged_kwargs
-                )
-            else:
-                logger.info("Probing Confluence with Personal Access Token.")
-                url = self._url
-                if self._is_cloud:
-                    confluence_client_with_minimal_retries = Confluence(
-                        url=url,
-                        username=credentials["confluence_username"],
-                        password=credentials["confluence_access_token"],
-                        **merged_kwargs,
+                try:
+                    r = requests.get(
+                        probe_url,
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=10,
                     )
-                else:
-                    confluence_client_with_minimal_retries = Confluence(
-                        url=url,
-                        token=credentials["confluence_access_token"],
-                        **merged_kwargs,
-                    )
+                    r.raise_for_status()
+                except HTTPError as e:
+                    if e.response.status_code == 403:
+                        logger.warning(
+                            "scoped token authenticated but not valid for probe endpoint (spaces)"
+                        )
+                    else:
+                        if "WWW-Authenticate" in e.response.headers:
+                            logger.warning(
+                                f"WWW-Authenticate: {e.response.headers['WWW-Authenticate']}"
+                            )
+                            logger.warning(f"Full error: {e.response.text}")
+                        raise e
+                return
 
-            # This call sometimes hangs indefinitely, so we run it in a timeout
-            spaces = run_with_timeout(
-                timeout=10,
-                func=confluence_client_with_minimal_retries.get_all_spaces,
-                limit=1,
+        # Initialize connection with probe timeout settings
+        self._confluence = self._initialize_connection_helper(
+            credentials, **merged_kwargs
+        )
+
+        # Retrieve first space to validate connection
+        spaces_iter = self.retrieve_confluence_spaces(limit=1)
+        first_space = next(spaces_iter, None)
+
+        if not first_space:
+            raise RuntimeError(
+                f"No spaces found at {self._url}! "
+                "Check your credentials and wiki_base and make sure "
+                "is_cloud is set correctly."
             )
 
-            # uncomment the following for testing
-            # the following is an attempt to retrieve the user's timezone
-            # Unfornately, all data is returned in UTC regardless of the user's time zone
-            # even tho CQL parses incoming times based on the user's time zone
-            # space_key = spaces["results"][0]["key"]
-            # space_details = confluence_client_with_minimal_retries.cql(f"space.key={space_key}+AND+type=space")
-
-            if not spaces:
-                raise RuntimeError(
-                    f"No spaces found at {url}! "
-                    "Check your credentials and wiki_base and make sure "
-                    "is_cloud is set correctly."
-                )
-
-            logger.info("Confluence probe succeeded.")
+        logger.info("Confluence probe succeeded.")
 
     def _initialize_connection(
         self,
@@ -293,7 +393,9 @@ class OnyxConfluence:
             url = f"https://api.atlassian.com/ex/confluence/{credentials['cloud_id']}"
             confluence = Confluence(url=url, oauth2=oauth2_dict, **kwargs)
         else:
-            logger.info("Connecting to Confluence with Personal Access Token.")
+            logger.info(
+                f"Connecting to Confluence with Personal Access Token as user: {credentials['confluence_username']}"
+            )
             if self._is_cloud:
                 confluence = Confluence(
                     url=self._url,
@@ -311,8 +413,8 @@ class OnyxConfluence:
         return confluence
 
     # https://developer.atlassian.com/cloud/confluence/rate-limiting/
-    # this uses the native rate limiting option provided by the
-    # confluence client and otherwise applies a simpler set of error handling
+    # This uses the native rate limiting option provided by the
+    # confluence client and otherwise applies a simpler set of error handling.
     def _make_rate_limited_confluence_method(
         self, name: str, credential_provider: CredentialsProviderInterface | None
     ) -> Callable[..., Any]:
@@ -377,25 +479,6 @@ class OnyxConfluence:
                     time.sleep(5)
 
         return wrapped_call
-
-    # def _wrap_methods(self) -> None:
-    #     """
-    #     For each attribute that is callable (i.e., a method) and doesn't start with an underscore,
-    #     wrap it with handle_confluence_rate_limit.
-    #     """
-    #     for attr_name in dir(self):
-    #         if callable(getattr(self, attr_name)) and not attr_name.startswith("_"):
-    #             setattr(
-    #                 self,
-    #                 attr_name,
-    #                 handle_confluence_rate_limit(getattr(self, attr_name)),
-    #             )
-
-    # def _ensure_token_valid(self) -> None:
-    #     if self._token_is_expired():
-    #         self._refresh_token()
-    #         # Re-init the Confluence client with the originally stored args
-    #         self._confluence = Confluence(self._url, *self._args, **self._kwargs)
 
     def __getattr__(self, name: str) -> Any:
         """Dynamically intercept attribute/method access."""
@@ -483,6 +566,7 @@ class OnyxConfluence:
         limit: int | None = None,
         # Called with the next url to use to get the next page
         next_page_callback: Callable[[str], None] | None = None,
+        force_offset_pagination: bool = False,
     ) -> Iterator[dict[str, Any]]:
         """
         This will paginate through the top level query.
@@ -498,6 +582,10 @@ class OnyxConfluence:
                 raw_response = self.get(
                     path=url_suffix,
                     advanced_mode=True,
+                    params={
+                        "body-format": "atlas_doc_format",
+                        "expand": "body.atlas_doc_format",
+                    },
                 )
             except Exception as e:
                 logger.exception(f"Error in confluence call to {url_suffix}")
@@ -564,14 +652,32 @@ class OnyxConfluence:
                 )
                 raise e
 
-            # yield the results individually
+            # Yield the results individually.
             results = cast(list[dict[str, Any]], next_response.get("results", []))
-            # make sure we don't update the start by more than the amount
+
+            # Note 1:
+            # Make sure we don't update the start by more than the amount
             # of results we were able to retrieve. The Confluence API has a
             # weird behavior where if you pass in a limit that is too large for
             # the configured server, it will artificially limit the amount of
             # results returned BUT will not apply this to the start parameter.
             # This will cause us to miss results.
+            #
+            # Note 2:
+            # We specifically perform manual yielding (i.e., `for x in xs: yield x`) as opposed to using a `yield from xs`
+            # because we *have to call the `next_page_callback`* prior to yielding the last element!
+            #
+            # If we did:
+            #
+            # ```py
+            # yield from results
+            # if next_page_callback:
+            #   next_page_callback(url_suffix)
+            # ```
+            #
+            # then the logic would fail since the iterator would finish (and the calling scope would exit out of its driving
+            # loop) prior to the callback being called.
+
             old_url_suffix = url_suffix
             updated_start = get_start_param_from_url(old_url_suffix)
             url_suffix = cast(str, next_response.get("_links", {}).get("next", ""))
@@ -587,6 +693,12 @@ class OnyxConfluence:
                         )
                     # notify the caller of the new url
                     next_page_callback(url_suffix)
+
+                elif force_offset_pagination and i == len(results) - 1:
+                    url_suffix = update_param_in_path(
+                        old_url_suffix, "start", str(updated_start)
+                    )
+
                 yield result
 
             # we've observed that Confluence sometimes returns a next link despite giving
@@ -684,7 +796,9 @@ class OnyxConfluence:
             url = "rest/api/search/user"
             expand_string = f"&expand={expand}" if expand else ""
             url += f"?cql={cql}{expand_string}"
-            for user_result in self._paginate_url(url, limit):
+            for user_result in self._paginate_url(
+                url, limit, force_offset_pagination=True
+            ):
                 # Example response:
                 # {
                 #     'user': {
@@ -727,29 +841,6 @@ class OnyxConfluence:
                     type=user["accountType"],
                 )
         else:
-            # https://developer.atlassian.com/server/confluence/rest/v900/api-group-user/#api-rest-api-user-list-get
-            # ^ is only available on data center deployments
-            # Example response:
-            # [
-            #     {
-            #         'type': 'known',
-            #         'username': 'admin',
-            #         'userKey': '40281082950c5fe901950c61c55d0000',
-            #         'profilePicture': {
-            #             'path': '/images/icons/profilepics/default.svg',
-            #             'width': 48,
-            #             'height': 48,
-            #             'isDefault': True
-            #         },
-            #         'displayName': 'Admin Test',
-            #         '_links': {
-            #             'self': 'http://localhost:8090/rest/api/user?key=40281082950c5fe901950c61c55d0000'
-            #         },
-            #         '_expandable': {
-            #             'status': ''
-            #         }
-            #     }
-            # ]
             for user in self._paginate_url("rest/api/user/list", limit):
                 yield ConfluenceUser(
                     user_id=user["userKey"],
@@ -774,7 +865,7 @@ class OnyxConfluence:
         user_query = f"{user_field}={quote(user_value)}"
 
         url = f"rest/api/user/memberof?{user_query}"
-        yield from self._paginate_url(url, limit)
+        yield from self._paginate_url(url, limit, force_offset_pagination=True)
 
     def paginated_groups_retrieval(
         self,
@@ -907,6 +998,13 @@ def _get_user(confluence_client: OnyxConfluence, user_id: str) -> str:
     return _USER_ID_TO_DISPLAY_NAME_CACHE.get(user_id) or _USER_NOT_FOUND
 
 
+def sanitize_attachment_title(title: str) -> str:
+    """
+    Sanitize the attachment title to be a valid HTML attribute.
+    """
+    return title.replace("<", "_").replace(">", "_").replace(" ", "_").replace(":", "_")
+
+
 def extract_text_from_confluence_html(
     confluence_client: OnyxConfluence,
     confluence_object: dict[str, Any],
@@ -926,6 +1024,9 @@ def extract_text_from_confluence_html(
     object_html = body.get("storage", body.get("view", {})).get("value")
 
     soup = bs4.BeautifulSoup(object_html, "html.parser")
+
+    _remove_macro_stylings(soup=soup)
+
     for user in soup.findAll("ri:user"):
         user_id = (
             user.attrs["ri:account-id"]
@@ -1006,4 +1107,26 @@ def extract_text_from_confluence_html(
         except Exception as e:
             logger.warning(f"Error processing ac:link-body: {e}")
 
+    for html_attachment in soup.findAll("ri:attachment"):
+        # This extracts the text from inline attachments in the page so they can be
+        # represented in the document text as plain text
+        try:
+            html_attachment.replaceWith(
+                f"<attachment>{sanitize_attachment_title(html_attachment.attrs['ri:filename'])}</attachment>"
+            )  # to be replaced later
+        except Exception as e:
+            logger.warning(f"Error processing ac:attachment: {e}")
+
     return format_document_soup(soup)
+
+
+def _remove_macro_stylings(soup: bs4.BeautifulSoup) -> None:
+    for macro_root in soup.findAll("ac:structured-macro"):
+        if not isinstance(macro_root, bs4.Tag):
+            continue
+
+        macro_styling = macro_root.find(name="ac:parameter", attrs={"ac:name": "page"})
+        if not macro_styling or not isinstance(macro_styling, bs4.Tag):
+            continue
+
+        macro_styling.extract()

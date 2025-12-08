@@ -2,10 +2,13 @@ import React, { useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { Callout } from "@/components/ui/callout";
 import Text from "@/components/ui/text";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/admin/connectors/Field";
-import { CloudEmbeddingProvider } from "../../../../components/embedding/interfaces";
+import Separator from "@/refresh-components/Separator";
+import Button from "@/refresh-components/buttons/Button";
+import { Label } from "@/components/Field";
+import {
+  CloudEmbeddingProvider,
+  getFormattedProviderName,
+} from "../../../../components/embedding/interfaces";
 import {
   EMBEDDING_PROVIDERS_ADMIN_URL,
   LLM_PROVIDERS_ADMIN_URL,
@@ -114,6 +117,11 @@ export function ChangeCredentialsModal({
       .toLowerCase()
       .split(" ")[0];
 
+    if (!normalizedProviderType) {
+      setTestError("Provider type is invalid or missing.");
+      return;
+    }
+
     try {
       const testResponse = await testEmbedding({
         provider_type: normalizedProviderType,
@@ -162,7 +170,7 @@ export function ChangeCredentialsModal({
     <Modal
       width="max-w-3xl"
       icon={provider.icon}
-      title={`Modify your ${provider.provider_type} ${
+      title={`Modify your ${getFormattedProviderName(provider.provider_type)} ${
         isProxy ? "Configuration" : "key"
       }`}
       onOutsideClick={onCancel}
@@ -193,12 +201,12 @@ export function ChangeCredentialsModal({
                 <>
                   <input
                     className={`
-                        border 
-                        border-border 
-                        rounded 
-                        w-full 
-                        py-2 
-                        px-3 
+                        border
+                        border-border
+                        rounded
+                        w-full
+                        py-2
+                        px-3
                         bg-background-emphasis
                     `}
                     value={apiKey}
@@ -214,12 +222,12 @@ export function ChangeCredentialsModal({
 
                   <input
                     className={`
-                        border 
-                        border-border 
-                        rounded 
-                        w-full 
-                        py-2 
-                        px-3 
+                        border
+                        border-border
+                        rounded
+                        w-full
+                        py-2
+                        px-3
                         bg-background-emphasis
                     `}
                     value={apiUrl}
@@ -242,12 +250,12 @@ export function ChangeCredentialsModal({
                   </div>
                   <input
                     className={`
-                     border 
-                     border-border 
-                     rounded 
-                     w-full 
-                     py-2 
-                     px-3 
+                     border
+                     border-border
+                     rounded
+                     w-full
+                     py-2
+                     px-3
                      bg-background-emphasis
                  `}
                     value={modelName}
@@ -265,7 +273,6 @@ export function ChangeCredentialsModal({
 
               <Button
                 className="mr-auto mt-4"
-                variant="submit"
                 onClick={() => handleSubmit()}
                 disabled={!apiKey}
               >
@@ -285,11 +292,7 @@ export function ChangeCredentialsModal({
           embedding type!
         </Text>
 
-        <Button
-          className="mr-auto"
-          onClick={handleDelete}
-          variant="destructive"
-        >
+        <Button className="mr-auto" onClick={handleDelete} danger>
           Delete Configuration
         </Button>
         {deletionError && (

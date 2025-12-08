@@ -11,6 +11,7 @@ from onyx.chat.models import (
 )
 from onyx.chat.models import PromptConfig
 from onyx.chat.prompt_builder.citations_prompt import compute_max_document_tokens
+from onyx.configs.app_configs import MAX_FEDERATED_SECTIONS
 from onyx.configs.constants import IGNORE_FOR_QA
 from onyx.configs.model_configs import DOC_EMBEDDING_CONTEXT_SIZE
 from onyx.context.search.models import InferenceChunk
@@ -67,21 +68,64 @@ def merge_chunk_intervals(chunk_ranges: list[ChunkRange]) -> list[ChunkRange]:
     return combined_ranges
 
 
+def _separate_federated_sections(
+    sections: list[InferenceSection],
+    section_relevance_list: list[bool] | None,
+) -> tuple[list[InferenceSection], list[InferenceSection], list[bool] | None]:
+    """
+    Separates out the first NUM_FEDERATED_SECTIONS federated sections to be spared from pruning.
+    Any remaining federated sections are treated as normal sections, and will get added if it
+    fits within the allocated context window. This is done as federated sections do not have
+    a score and would otherwise always get pruned.
+    """
+    federated_sections: list[InferenceSection] = []
+    normal_sections: list[InferenceSection] = []
+    normal_section_relevance_list: list[bool] = []
+
+    for i, section in enumerate(sections):
+        if (
+            len(federated_sections) < MAX_FEDERATED_SECTIONS
+            and section.center_chunk.is_federated
+        ):
+            federated_sections.append(section)
+            continue
+        normal_sections.append(section)
+        if section_relevance_list is not None:
+            normal_section_relevance_list.append(section_relevance_list[i])
+
+    return (
+        federated_sections[:MAX_FEDERATED_SECTIONS],
+        normal_sections,
+        normal_section_relevance_list if section_relevance_list is not None else None,
+    )
+
+
 def _compute_limit(
-    prompt_config: PromptConfig,
     llm_config: LLMConfig,
-    question: str,
+    existing_input_tokens: int,
     max_chunks: int | None,
     max_window_percentage: float | None,
     max_tokens: int | None,
     tool_token_count: int,
+    prompt_config: PromptConfig | None = None,
 ) -> int:
-    llm_max_document_tokens = compute_max_document_tokens(
-        prompt_config=prompt_config,
-        llm_config=llm_config,
-        tool_token_count=tool_token_count,
-        actual_user_input=question,
-    )
+    # If prompt_config is provided (backwards compatibility), compute using the old method
+    if prompt_config is not None:
+        llm_max_document_tokens = compute_max_document_tokens(
+            prompt_config=prompt_config,
+            llm_config=llm_config,
+            tool_token_count=tool_token_count,
+            actual_user_input=None,  # Will use default estimate
+        )
+    else:
+        # New path: existing_input_tokens is pre-computed total input token count
+        # This includes system prompt, history, user message, agent turns, etc.
+        llm_max_document_tokens = (
+            llm_config.max_input_tokens
+            - existing_input_tokens
+            - tool_token_count
+            - 40  # _MISC_BUFFER from compute_max_document_tokens
+        )
 
     window_percentage_based_limit = (
         max_window_percentage * llm_max_document_tokens
@@ -105,7 +149,7 @@ def _compute_limit(
     return int(min(limit_options))
 
 
-def reorder_sections(
+def _reorder_sections(
     sections: list[InferenceSection],
     section_relevance_list: list[bool] | None,
 ) -> list[InferenceSection]:
@@ -113,11 +157,10 @@ def reorder_sections(
         return sections
 
     reordered_sections: list[InferenceSection] = []
-    if section_relevance_list is not None:
-        for selection_target in [True, False]:
-            for section, is_relevant in zip(sections, section_relevance_list):
-                if is_relevant == selection_target:
-                    reordered_sections.append(section)
+    for selection_target in [True, False]:
+        for section, is_relevant in zip(sections, section_relevance_list):
+            if is_relevant == selection_target:
+                reordered_sections.append(section)
     return reordered_sections
 
 
@@ -134,6 +177,7 @@ def _remove_sections_to_ignore(
 def _apply_pruning(
     sections: list[InferenceSection],
     section_relevance_list: list[bool] | None,
+    keep_sections: list[InferenceSection],
     token_limit: int,
     is_manually_selected_docs: bool,
     use_sections: bool,
@@ -144,10 +188,22 @@ def _apply_pruning(
         provider_type=llm_config.model_provider,
         model_name=llm_config.model_name,
     )
-    sections = deepcopy(sections)  # don't modify in place
+
+    # combine the section lists, making sure to add the keep_sections first
+    sections = deepcopy(keep_sections) + deepcopy(sections)
+
+    # build combined relevance list, treating the keep_sections as relevant
+    if section_relevance_list is not None:
+        section_relevance_list = [True] * len(keep_sections) + section_relevance_list
+
+    # map unique_id: relevance for final ordering step
+    section_id_to_relevance: dict[str, bool] = {}
+    if section_relevance_list is not None:
+        for sec, rel in zip(sections, section_relevance_list):
+            section_id_to_relevance[sec.center_chunk.unique_id] = rel
 
     # re-order docs with all the "relevant" docs at the front
-    sections = reorder_sections(
+    sections = _reorder_sections(
         sections=sections, section_relevance_list=section_relevance_list
     )
     # remove docs that are explicitly marked as not for QA
@@ -250,7 +306,7 @@ def _apply_pruning(
             # less than 75 tokens are available to try and avoid this situation
             # from occurring in the first place
             if final_doc_content_length <= 0:
-                logger.error(
+                logger.debug(
                     f"Final section ({sections[final_section_ind].center_chunk.semantic_identifier}) content "
                     "length is less than 0. Removing this section from the final prompt."
                 )
@@ -274,41 +330,57 @@ def _apply_pruning(
                 )
                 sections = [sections[0]]
 
+    # sort by relevance, then by score (as we added the keep_sections first)
+    sections.sort(
+        key=lambda s: (
+            not section_id_to_relevance.get(s.center_chunk.unique_id, True),
+            -(s.center_chunk.score or 0.0),
+        ),
+    )
+
     return sections
 
 
 def prune_sections(
     sections: list[InferenceSection],
     section_relevance_list: list[bool] | None,
-    prompt_config: PromptConfig,
     llm_config: LLMConfig,
-    question: str,
+    existing_input_tokens: int,
     contextual_pruning_config: ContextualPruningConfig,
+    prompt_config: PromptConfig | None = None,
 ) -> list[InferenceSection]:
     # Assumes the sections are score ordered with highest first
     if section_relevance_list is not None:
         assert len(sections) == len(section_relevance_list)
 
+    # get federated sections (up to NUM_FEDERATED_SECTIONS)
+    # TODO: if we can somehow score the federated sections well, we don't need this
+    federated_sections, normal_sections, normal_section_relevance_list = (
+        _separate_federated_sections(sections, section_relevance_list)
+    )
+
     actual_num_chunks = (
         contextual_pruning_config.max_chunks
         * contextual_pruning_config.num_chunk_multiple
+        + len(federated_sections)
         if contextual_pruning_config.max_chunks
         else None
     )
 
     token_limit = _compute_limit(
-        prompt_config=prompt_config,
         llm_config=llm_config,
-        question=question,
+        existing_input_tokens=existing_input_tokens,
         max_chunks=actual_num_chunks,
         max_window_percentage=contextual_pruning_config.max_window_percentage,
         max_tokens=contextual_pruning_config.max_tokens,
         tool_token_count=contextual_pruning_config.tool_num_tokens,
+        prompt_config=prompt_config,
     )
 
     return _apply_pruning(
-        sections=sections,
-        section_relevance_list=section_relevance_list,
+        sections=normal_sections,
+        section_relevance_list=normal_section_relevance_list,
+        keep_sections=federated_sections,
         token_limit=token_limit,
         is_manually_selected_docs=contextual_pruning_config.is_manually_selected_docs,
         use_sections=contextual_pruning_config.use_sections,  # Now default True
@@ -443,19 +515,19 @@ def _merge_sections(sections: list[InferenceSection]) -> list[InferenceSection]:
 def prune_and_merge_sections(
     sections: list[InferenceSection],
     section_relevance_list: list[bool] | None,
-    prompt_config: PromptConfig,
     llm_config: LLMConfig,
-    question: str,
+    existing_input_tokens: int,
     contextual_pruning_config: ContextualPruningConfig,
+    prompt_config: PromptConfig | None = None,
 ) -> list[InferenceSection]:
     # Assumes the sections are score ordered with highest first
     remaining_sections = prune_sections(
         sections=sections,
         section_relevance_list=section_relevance_list,
-        prompt_config=prompt_config,
         llm_config=llm_config,
-        question=question,
+        existing_input_tokens=existing_input_tokens,
         contextual_pruning_config=contextual_pruning_config,
+        prompt_config=prompt_config,
     )
 
     merged_sections = _merge_sections(sections=remaining_sections)

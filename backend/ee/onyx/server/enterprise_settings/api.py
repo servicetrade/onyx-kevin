@@ -26,9 +26,9 @@ from onyx.auth.users import current_admin_user
 from onyx.auth.users import current_user_with_expired_token
 from onyx.auth.users import get_user_manager
 from onyx.auth.users import UserManager
-from onyx.db.engine import get_session
+from onyx.db.engine.sql_engine import get_session
 from onyx.db.models import User
-from onyx.file_store.file_store import PostgresBackedFileStore
+from onyx.file_store.file_store import get_default_file_store
 from onyx.server.utils import BasicAuthenticationError
 from onyx.utils.logger import setup_logger
 from shared_configs.configs import MULTI_TENANT
@@ -114,14 +114,14 @@ async def refresh_access_token(
 
 
 @admin_router.put("")
-def put_settings(
+def admin_ee_put_settings(
     settings: EnterpriseSettings, _: User | None = Depends(current_admin_user)
 ) -> None:
     store_settings(settings)
 
 
 @basic_router.get("")
-def fetch_settings() -> EnterpriseSettings:
+def ee_fetch_settings() -> EnterpriseSettings:
     if MULTI_TENANT:
         tenant_id = get_current_tenant_id()
         if not tenant_id or tenant_id == POSTGRES_DEFAULT_SCHEMA:
@@ -134,19 +134,19 @@ def fetch_settings() -> EnterpriseSettings:
 def put_logo(
     file: UploadFile,
     is_logotype: bool = False,
-    db_session: Session = Depends(get_session),
     _: User | None = Depends(current_admin_user),
 ) -> None:
-    upload_logo(file=file, db_session=db_session, is_logotype=is_logotype)
+    upload_logo(file=file, is_logotype=is_logotype)
 
 
 def fetch_logo_helper(db_session: Session) -> Response:
     try:
-        file_store = PostgresBackedFileStore(db_session)
+        file_store = get_default_file_store()
         onyx_file = file_store.get_file_with_mime_type(get_logo_filename())
         if not onyx_file:
             raise ValueError("get_onyx_file returned None!")
     except Exception:
+        logger.exception("Faield to fetch logo file")
         raise HTTPException(
             status_code=404,
             detail="No logo file found",
@@ -157,7 +157,7 @@ def fetch_logo_helper(db_session: Session) -> Response:
 
 def fetch_logotype_helper(db_session: Session) -> Response:
     try:
-        file_store = PostgresBackedFileStore(db_session)
+        file_store = get_default_file_store()
         onyx_file = file_store.get_file_with_mime_type(get_logotype_filename())
         if not onyx_file:
             raise ValueError("get_onyx_file returned None!")

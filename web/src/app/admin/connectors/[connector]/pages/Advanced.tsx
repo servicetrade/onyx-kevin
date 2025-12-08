@@ -1,9 +1,10 @@
 import React from "react";
 import NumberInput from "./ConnectorInput/NumberInput";
-import { TextFormField } from "@/components/admin/connectors/Field";
-import { TrashIcon } from "@/components/icons/icons";
+import { TextFormField } from "@/components/Field";
+import Button from "@/refresh-components/buttons/Button";
+import SvgTrash from "@/icons/trash";
 
-const AdvancedFormPage = () => {
+export default function AdvancedFormPage() {
   return (
     <div className="py-4 flex flex-col gap-y-6 rounded-lg max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold mb-4 text-text-800">
@@ -14,10 +15,10 @@ const AdvancedFormPage = () => {
         description={`
           Checks all documents against the source to delete those that no longer exist.
           Note: This process checks every document, so be cautious when increasing frequency.
-          Default is 30 days.
+          Default is 720 hours (30 days). Decimal hours are supported (e.g., 0.1 hours = 6 minutes).
           Enter 0 to disable pruning for this connector.
         `}
-        label="Prune Frequency (days)"
+        label="Prune Frequency (hours)"
         name="pruneFreq"
       />
 
@@ -35,13 +36,10 @@ const AdvancedFormPage = () => {
         name="indexingStart"
       />
       <div className="mt-4 flex w-full mx-auto max-w-2xl justify-start">
-        <button className="flex gap-x-1 bg-red-500 hover:bg-red-500/80 items-center text-white py-2.5 px-3.5 text-sm font-regular rounded ">
-          <TrashIcon size={20} className="text-white" />
-          <div className="w-full items-center gap-x-2 flex">Reset</div>
-        </button>
+        <Button leftIcon={SvgTrash} danger type="submit">
+          Reset
+        </Button>
       </div>
     </div>
   );
-};
-
-export default AdvancedFormPage;
+}

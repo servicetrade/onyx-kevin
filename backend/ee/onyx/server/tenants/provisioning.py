@@ -28,8 +28,8 @@ from onyx.auth.users import exceptions
 from onyx.configs.app_configs import CONTROL_PLANE_API_BASE_URL
 from onyx.configs.app_configs import DEV_MODE
 from onyx.configs.constants import MilestoneRecordType
-from onyx.db.engine import get_session_with_shared_schema
-from onyx.db.engine import get_session_with_tenant
+from onyx.db.engine.sql_engine import get_session_with_shared_schema
+from onyx.db.engine.sql_engine import get_session_with_tenant
 from onyx.db.llm import update_default_provider
 from onyx.db.llm import upsert_cloud_embedding_provider
 from onyx.db.llm import upsert_llm_provider
@@ -37,9 +37,9 @@ from onyx.db.models import AvailableTenant
 from onyx.db.models import IndexModelStatus
 from onyx.db.models import SearchSettings
 from onyx.db.models import UserTenantMapping
-from onyx.llm.llm_provider_options import ANTHROPIC_MODEL_NAMES
 from onyx.llm.llm_provider_options import ANTHROPIC_PROVIDER_NAME
 from onyx.llm.llm_provider_options import ANTHROPIC_VISIBLE_MODEL_NAMES
+from onyx.llm.llm_provider_options import get_anthropic_model_names
 from onyx.llm.llm_provider_options import OPEN_AI_MODEL_NAMES
 from onyx.llm.llm_provider_options import OPEN_AI_VISIBLE_MODEL_NAMES
 from onyx.llm.llm_provider_options import OPENAI_PROVIDER_NAME
@@ -278,7 +278,7 @@ def configure_default_api_keys(db_session: Session) -> None:
                     is_visible=name in ANTHROPIC_VISIBLE_MODEL_NAMES,
                     max_input_tokens=None,
                 )
-                for name in ANTHROPIC_MODEL_NAMES
+                for name in get_anthropic_model_names()
             ],
             api_key_changed=True,
         )

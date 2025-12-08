@@ -19,10 +19,9 @@ from onyx.configs.app_configs import REDIS_HOST
 from onyx.configs.app_configs import REDIS_PASSWORD
 from onyx.configs.app_configs import REDIS_PORT
 from onyx.configs.app_configs import REDIS_SSL
-from onyx.db.engine import get_session_with_tenant
+from onyx.db.engine.sql_engine import get_session_with_tenant
 from onyx.db.users import get_user_by_email
 from onyx.redis.redis_connector import RedisConnector
-from onyx.redis.redis_connector_index import RedisConnectorIndex
 from onyx.redis.redis_pool import RedisPool
 from shared_configs.configs import MULTI_TENANT
 from shared_configs.configs import POSTGRES_DEFAULT_SCHEMA
@@ -52,9 +51,11 @@ class OnyxRedisCommand(Enum):
     purge_usergroup_taskset = "purge_usergroup_taskset"
     purge_locks_blocking_deletion = "purge_locks_blocking_deletion"
     purge_vespa_syncing = "purge_vespa_syncing"
+    purge_pidbox = "purge_pidbox"
     get_user_token = "get_user_token"
     delete_user_token = "delete_user_token"
     add_invited_user = "add_invited_user"
+    get_list_element = "get_list_element"
 
     def __str__(self) -> str:
         return self.value
@@ -128,9 +129,6 @@ def onyx_redis(
         logger.info(f"Purging locks associated with deleting cc_pair={cc_pair_id}.")
         redis_connector = RedisConnector(tenant_id, cc_pair_id)
 
-        match_pattern = f"{tenant_id}:{RedisConnectorIndex.FENCE_PREFIX}_{cc_pair_id}/*"
-        purge_by_match_and_type(match_pattern, "string", batch, dry_run, r)
-
         redis_delete_if_exists_helper(
             f"{tenant_id}:{redis_connector.prune.fence_key}", dry_run, r
         )
@@ -145,6 +143,17 @@ def onyx_redis(
         return purge_by_match_and_type(
             "*connectorsync:vespa_syncing*", "string", batch, dry_run, r
         )
+    elif command == OnyxRedisCommand.purge_pidbox:
+        return purge_by_match_and_type(
+            "*reply.celery.pidbox", "list", batch, dry_run, r
+        )
+    elif command == OnyxRedisCommand.get_list_element:
+        # just hardcoded for now
+        result = r.lrange(
+            "0097a564-d343-3c1f-9fd1-af8cce038115.reply.celery.pidbox", 0, 0
+        )
+        print(f"{result}")
+        return 0
     elif command == OnyxRedisCommand.get_user_token:
         if not user_email:
             logger.error("You must specify --user-email with get_user_token")

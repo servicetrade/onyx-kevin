@@ -10,7 +10,7 @@ import { Calendar } from "@/components/ui/calendar"; // or wherever your Calenda
 import { FilterDropdown } from "@/components/search/filtering/FilterDropdown";
 import { listSourceMetadata } from "@/lib/sources";
 import { getDateRangeString } from "@/lib/dateUtils";
-import { DateRangePickerValue } from "../../../app/ee/admin/performance/DateRangeSelector";
+import { DateRangePickerValue } from "../../dateRangeSelectors/AdminDateRangeSelector";
 import { Tag } from "@/lib/types";
 import { SourceIcon } from "@/components/SourceIcon";
 export interface SourceSelectorProps {
@@ -150,7 +150,10 @@ export function HorizontalSourceSelector({
             .filter((source) => existingSources.includes(source.internalName))
             .map((source) => ({
               icon: (
-                <SourceIcon sourceType={source.internalName} iconSize={14} />
+                <SourceIcon
+                  sourceType={source.baseSourceType || source.internalName}
+                  iconSize={14}
+                />
               ),
               key: source.internalName,
               display: (

@@ -3,6 +3,7 @@
 import { useContext, useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { SettingsContext } from "../settings/SettingsProvider";
+import { OnyxIcon } from "../icons/icons";
 
 export function Logo({
   height,

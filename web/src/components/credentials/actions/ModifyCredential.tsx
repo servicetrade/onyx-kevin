@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { Modal } from "@/components/Modal";
-import { Button } from "@/components/ui/button";
+import Button from "@/refresh-components/buttons/Button";
 import Text from "@/components/ui/text";
 import { Badge } from "@/components/ui/badge";
-import { ValidSources } from "@/lib/types";
+import { AccessType } from "@/lib/types";
 import {
   EditIcon,
   NewChatIcon,
@@ -157,6 +157,7 @@ export default function ModifyCredential({
   credentials,
   editableCredentials,
   defaultedCredential,
+  accessType,
   onSwap,
   onSwitch,
   onEditCredential,
@@ -166,15 +167,19 @@ export default function ModifyCredential({
   close?: () => void;
   showIfEmpty?: boolean;
   attachedConnector?: Connector<any>;
-  defaultedCredential?: Credential<any>;
   credentials: Credential<any>[];
   editableCredentials: Credential<any>[];
-  source: ValidSources;
+  defaultedCredential?: Credential<any>;
+  accessType: AccessType;
+  onSwap?: (
+    newCredential: Credential<any>,
+    connectorId: number,
+    accessType: AccessType
+  ) => void;
   onSwitch?: (newCredential: Credential<any>) => void;
-  onSwap?: (newCredential: Credential<any>, connectorId: number) => void;
-  onCreateNew?: () => void;
-  onDeleteCredential: (credential: Credential<any | null>) => void;
   onEditCredential?: (credential: Credential<ConfluenceCredentialJson>) => void;
+  onDeleteCredential: (credential: Credential<any | null>) => void;
+  onCreateNew?: () => void;
 }) {
   const [selectedCredential, setSelectedCredential] =
     useState<Credential<any> | null>(null);
@@ -200,14 +205,14 @@ export default function ModifyCredential({
             <div className="mt-6 flex gap-x-2 justify-end">
               <Button
                 onClick={async () => {
-                  await onDeleteCredential(confirmDeletionCredential);
+                  onDeleteCredential(confirmDeletionCredential);
                   setConfirmDeletionCredential(null);
                 }}
               >
                 Confirm
               </Button>
               <Button
-                variant="outline"
+                secondary
                 onClick={() => setConfirmDeletionCredential(null)}
               >
                 Cancel
@@ -254,8 +259,8 @@ export default function ModifyCredential({
                 onClick={() => {
                   onCreateNew();
                 }}
-                className="bg-background-500 disabled:border-transparent 
-              transition-colors duration-150 ease-in disabled:bg-background-300 
+                className="bg-background-500 disabled:border-transparent
+              transition-colors duration-150 ease-in disabled:bg-background-300
               disabled:hover:bg-background-300 hover:bg-background-600 cursor-pointer"
               >
                 <div className="flex gap-x-2 items-center w-full border-none">
@@ -271,7 +276,7 @@ export default function ModifyCredential({
               disabled={selectedCredential == null}
               onClick={() => {
                 if (onSwap && attachedConnector) {
-                  onSwap(selectedCredential!, attachedConnector.id);
+                  onSwap(selectedCredential!, attachedConnector.id, accessType);
                   if (close) {
                     close();
                   }
@@ -280,8 +285,8 @@ export default function ModifyCredential({
                   onSwitch(selectedCredential!);
                 }
               }}
-              className="bg-indigo-500 disabled:border-transparent 
-              transition-colors duration-150 ease-in disabled:bg-indigo-300 
+              className="bg-indigo-500 disabled:border-transparent
+              transition-colors duration-150 ease-in disabled:bg-indigo-300
               disabled:hover:bg-indigo-300 hover:bg-indigo-600 cursor-pointer"
             >
               <div className="flex gap-x-2 items-center w-full border-none">

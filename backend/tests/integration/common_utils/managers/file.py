@@ -8,6 +8,7 @@ from typing import Tuple
 import requests
 
 from onyx.file_store.models import FileDescriptor
+from onyx.server.documents.models import FileUploadResponse
 from tests.integration.common_utils.constants import API_SERVER_URL
 from tests.integration.common_utils.constants import GENERAL_HEADERS
 from tests.integration.common_utils.test_models import DATestUser
@@ -34,19 +35,34 @@ class FileManager:
             files_param.append(("files", (filename, file_obj, mime_type)))
 
         response = requests.post(
-            f"{API_SERVER_URL}/chat/file",
+            f"{API_SERVER_URL}/user/projects/file/upload",
             files=files_param,
             headers=headers,
         )
 
         if not response.ok:
+            try:
+                detail = response.json().get("detail", response.text)
+            except Exception:
+                detail = response.text
             return (
                 cast(List[FileDescriptor], []),
-                f"Failed to upload files - {response.json().get('detail', 'Unknown error')}",
+                f"Failed to upload files - {detail}",
             )
 
         response_json = response.json()
-        return response_json.get("files", cast(List[FileDescriptor], [])), ""
+        # Convert UserFileSnapshot to FileDescriptor format
+        file_descriptors: List[FileDescriptor] = []
+        for user_file in response_json.get("user_files", []):
+            file_descriptors.append(
+                {
+                    "id": user_file["file_id"],
+                    "type": user_file["chat_file_type"],
+                    "name": user_file["name"],
+                    "user_file_id": str(user_file["id"]),
+                }
+            )
+        return file_descriptors, ""
 
     @staticmethod
     def fetch_uploaded_file(
@@ -70,7 +86,7 @@ class FileManager:
         file_name: str,
         user_performing_action: DATestUser,
         content_type: str = "application/octet-stream",
-    ) -> dict:
+    ) -> FileUploadResponse:
         # Read the file content
         with open(file_path, "rb") as f:
             file_content = f.read()
@@ -105,4 +121,4 @@ class FileManager:
             )
 
         response_json = response.json()
-        return response_json
+        return FileUploadResponse(**response_json)

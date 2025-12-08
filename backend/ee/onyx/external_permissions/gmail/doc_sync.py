@@ -3,8 +3,8 @@ from datetime import datetime
 from datetime import timezone
 
 from ee.onyx.external_permissions.perm_sync_types import FetchAllDocumentsFunction
+from ee.onyx.external_permissions.perm_sync_types import FetchAllDocumentsIdsFunction
 from onyx.access.models import DocExternalAccess
-from onyx.access.models import ExternalAccess
 from onyx.connectors.gmail.connector import GmailConnector
 from onyx.connectors.interfaces import GenerateSlimDocumentOutput
 from onyx.db.models import ConnectorCredentialPair
@@ -26,7 +26,7 @@ def _get_slim_doc_generator(
         else 0.0
     )
 
-    return gmail_connector.retrieve_all_slim_documents(
+    return gmail_connector.retrieve_all_slim_docs_perm_sync(
         start=start_time,
         end=current_time.timestamp(),
         callback=callback,
@@ -36,6 +36,7 @@ def _get_slim_doc_generator(
 def gmail_doc_sync(
     cc_pair: ConnectorCredentialPair,
     fetch_all_existing_docs_fn: FetchAllDocumentsFunction,
+    fetch_all_existing_docs_ids_fn: FetchAllDocumentsIdsFunction,
     callback: IndexingHeartbeatInterface | None,
 ) -> Generator[DocExternalAccess, None, None]:
     """
@@ -59,17 +60,11 @@ def gmail_doc_sync(
 
                 callback.progress("gmail_doc_sync", 1)
 
-            if slim_doc.perm_sync_data is None:
+            if slim_doc.external_access is None:
                 logger.warning(f"No permissions found for document {slim_doc.id}")
                 continue
 
-            if user_email := slim_doc.perm_sync_data.get("user_email"):
-                ext_access = ExternalAccess(
-                    external_user_emails=set([user_email]),
-                    external_user_group_ids=set(),
-                    is_public=False,
-                )
-                yield DocExternalAccess(
-                    doc_id=slim_doc.id,
-                    external_access=ext_access,
-                )
+            yield DocExternalAccess(
+                doc_id=slim_doc.id,
+                external_access=slim_doc.external_access,
+            )

@@ -1,10 +1,14 @@
+# TODO(rkuo): All of the downgrade_postgres and upgrade_postgres operations here
+# are vulnerable to deadlocks. We could deal with them similar to reset_postgres
+# where we retry out of process
+
 import json
 
 import pytest
 from sqlalchemy import text
 
 from onyx.configs.constants import DEFAULT_BOOST
-from onyx.db.engine import get_session_context_manager
+from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from tests.integration.common_utils.reset import downgrade_postgres
 from tests.integration.common_utils.reset import upgrade_postgres
 
@@ -48,7 +52,7 @@ def test_fix_capitalization_migration() -> None:
     ]
 
     # Insert the test data
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         for doc in test_data:
             db_session.execute(
                 text(
@@ -86,7 +90,7 @@ def test_fix_capitalization_migration() -> None:
         db_session.commit()
 
     # Verify the data was inserted correctly
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         results = db_session.execute(
             text(
                 """
@@ -109,7 +113,7 @@ def test_fix_capitalization_migration() -> None:
     )
 
     # Verify the fix was applied
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         results = db_session.execute(
             text(
                 """
@@ -173,7 +177,7 @@ def test_jira_connector_migration() -> None:
     ]
 
     # Insert the test data
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         for connector in test_data:
             db_session.execute(
                 text(
@@ -202,7 +206,7 @@ def test_jira_connector_migration() -> None:
         db_session.commit()
 
     # Verify the data was inserted correctly
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         results = db_session.execute(
             text(
                 """
@@ -235,7 +239,7 @@ def test_jira_connector_migration() -> None:
     )
 
     # Verify the upgrade was applied correctly
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         results = db_session.execute(
             text(
                 """
@@ -280,7 +284,7 @@ def test_jira_connector_migration() -> None:
     )
 
     # Verify the downgrade was applied correctly
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         results = db_session.execute(
             text(
                 """

@@ -1,26 +1,6 @@
 import json
 import os
 
-# Applicable for OIDC Auth
-OPENID_CONFIG_URL = os.environ.get("OPENID_CONFIG_URL", "")
-
-# Applicable for OIDC Auth, allows you to override the scopes that
-# are requested from the OIDC provider. Currently used when passing
-# over access tokens to tool calls and the tool needs more scopes
-OIDC_SCOPE_OVERRIDE: list[str] | None = None
-_OIDC_SCOPE_OVERRIDE = os.environ.get("OIDC_SCOPE_OVERRIDE")
-
-if _OIDC_SCOPE_OVERRIDE:
-    try:
-        OIDC_SCOPE_OVERRIDE = [
-            scope.strip() for scope in _OIDC_SCOPE_OVERRIDE.split(",")
-        ]
-    except Exception:
-        pass
-
-# Applicable for SAML Auth
-SAML_CONF_DIR = os.environ.get("SAML_CONF_DIR") or "/app/ee/onyx/configs/saml_config"
-
 
 #####
 # Auto Permission Sync
@@ -54,10 +34,37 @@ CONFLUENCE_ANONYMOUS_ACCESS_IS_PUBLIC = (
 
 
 #####
+# JIRA
+#####
+
+# In seconds, default is 30 minutes
+JIRA_PERMISSION_DOC_SYNC_FREQUENCY = int(
+    os.environ.get("JIRA_PERMISSION_DOC_SYNC_FREQUENCY") or 30 * 60
+)
+# In seconds, default is 30 minutes
+JIRA_PERMISSION_GROUP_SYNC_FREQUENCY = int(
+    os.environ.get("JIRA_PERMISSION_GROUP_SYNC_FREQUENCY") or 30 * 60
+)
+
+
+#####
 # Google Drive
 #####
 GOOGLE_DRIVE_PERMISSION_GROUP_SYNC_FREQUENCY = int(
     os.environ.get("GOOGLE_DRIVE_PERMISSION_GROUP_SYNC_FREQUENCY") or 5 * 60
+)
+
+
+#####
+# GitHub
+#####
+# In seconds, default is 5 minutes
+GITHUB_PERMISSION_DOC_SYNC_FREQUENCY = int(
+    os.environ.get("GITHUB_PERMISSION_DOC_SYNC_FREQUENCY") or 5 * 60
+)
+# In seconds, default is 5 minutes
+GITHUB_PERMISSION_GROUP_SYNC_FREQUENCY = int(
+    os.environ.get("GITHUB_PERMISSION_GROUP_SYNC_FREQUENCY") or 5 * 60
 )
 
 
@@ -69,6 +76,28 @@ SLACK_PERMISSION_DOC_SYNC_FREQUENCY = int(
 )
 
 NUM_PERMISSION_WORKERS = int(os.environ.get("NUM_PERMISSION_WORKERS") or 2)
+
+
+#####
+# Teams
+#####
+# In seconds, default is 5 minutes
+TEAMS_PERMISSION_DOC_SYNC_FREQUENCY = int(
+    os.environ.get("TEAMS_PERMISSION_DOC_SYNC_FREQUENCY") or 5 * 60
+)
+
+#####
+# SharePoint
+#####
+# In seconds, default is 30 minutes
+SHAREPOINT_PERMISSION_DOC_SYNC_FREQUENCY = int(
+    os.environ.get("SHAREPOINT_PERMISSION_DOC_SYNC_FREQUENCY") or 30 * 60
+)
+
+# In seconds, default is 5 minutes
+SHAREPOINT_PERMISSION_GROUP_SYNC_FREQUENCY = int(
+    os.environ.get("SHAREPOINT_PERMISSION_GROUP_SYNC_FREQUENCY") or 5 * 60
+)
 
 
 ####
@@ -94,28 +123,13 @@ JWT_PUBLIC_KEY_URL: str | None = os.getenv("JWT_PUBLIC_KEY_URL", None)
 SUPER_USERS = json.loads(os.environ.get("SUPER_USERS", "[]"))
 SUPER_CLOUD_API_KEY = os.environ.get("SUPER_CLOUD_API_KEY", "api_key")
 
-OAUTH_SLACK_CLIENT_ID = os.environ.get("OAUTH_SLACK_CLIENT_ID", "")
-OAUTH_SLACK_CLIENT_SECRET = os.environ.get("OAUTH_SLACK_CLIENT_SECRET", "")
-OAUTH_CONFLUENCE_CLOUD_CLIENT_ID = os.environ.get(
-    "OAUTH_CONFLUENCE_CLOUD_CLIENT_ID", ""
-)
-OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET = os.environ.get(
-    "OAUTH_CONFLUENCE_CLOUD_CLIENT_SECRET", ""
-)
-OAUTH_JIRA_CLOUD_CLIENT_ID = os.environ.get("OAUTH_JIRA_CLOUD_CLIENT_ID", "")
-OAUTH_JIRA_CLOUD_CLIENT_SECRET = os.environ.get("OAUTH_JIRA_CLOUD_CLIENT_SECRET", "")
-OAUTH_GOOGLE_DRIVE_CLIENT_ID = os.environ.get("OAUTH_GOOGLE_DRIVE_CLIENT_ID", "")
-OAUTH_GOOGLE_DRIVE_CLIENT_SECRET = os.environ.get(
-    "OAUTH_GOOGLE_DRIVE_CLIENT_SECRET", ""
-)
-
 # The posthog client does not accept empty API keys or hosts however it fails silently
 # when the capture is called. These defaults prevent Posthog issues from breaking the Onyx app
 POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY") or "FooBar"
 POSTHOG_HOST = os.environ.get("POSTHOG_HOST") or "https://us.i.posthog.com"
 
-HUBSPOT_TRACKING_URL = os.environ.get("HUBSPOT_TRACKING_URL")
+MARKETING_POSTHOG_API_KEY = os.environ.get("MARKETING_POSTHOG_API_KEY")
 
-ANONYMOUS_USER_COOKIE_NAME = "onyx_anonymous_user"
+HUBSPOT_TRACKING_URL = os.environ.get("HUBSPOT_TRACKING_URL")
 
 GATED_TENANTS_KEY = "gated_tenants"

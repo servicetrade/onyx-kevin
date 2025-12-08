@@ -1,5 +1,7 @@
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -84,8 +86,7 @@ class SavedSearchSettings(InferenceSettings, IndexingSetting):
             multipass_indexing=search_settings.multipass_indexing,
             embedding_precision=search_settings.embedding_precision,
             reduced_dimension=search_settings.reduced_dimension,
-            # Whether switching to this model requires re-indexing
-            background_reindex_enabled=search_settings.background_reindex_enabled,
+            switchover_type=search_settings.switchover_type,
             enable_contextual_rag=search_settings.enable_contextual_rag,
             contextual_rag_llm_name=search_settings.contextual_rag_llm_name,
             contextual_rag_llm_provider=search_settings.contextual_rag_llm_provider,
@@ -111,11 +112,19 @@ class BaseFilters(BaseModel):
     document_set: list[str] | None = None
     time_cutoff: datetime | None = None
     tags: list[Tag] | None = None
-    user_file_ids: list[int] | None = None
-    user_folder_ids: list[int] | None = None
+    kg_entities: list[str] | None = None
+    kg_relationships: list[str] | None = None
+    kg_terms: list[str] | None = None
+    kg_sources: list[str] | None = None
+    kg_chunk_id_zero_only: bool | None = False
 
 
-class IndexFilters(BaseFilters):
+class UserFileFilters(BaseModel):
+    user_file_ids: list[UUID] | None = None
+    project_id: int | None = None
+
+
+class IndexFilters(BaseFilters, UserFileFilters):
     access_control_list: list[str] | None
     tenant_id: str | None = None
 
@@ -146,10 +155,12 @@ class SearchRequest(ChunkContext):
     query: str
 
     expanded_queries: QueryExpansions | None = None
+    original_query: str | None = None
 
     search_type: SearchType = SearchType.SEMANTIC
 
     human_selected_filters: BaseFilters | None = None
+    user_file_filters: UserFileFilters | None = None
     enable_auto_detect_filters: bool | None = None
     persona: Persona | None = None
 
@@ -196,6 +207,7 @@ class SearchQuery(ChunkContext):
     precomputed_query_embedding: Embedding | None = None
 
     expanded_queries: QueryExpansions | None = None
+    original_query: str | None
 
 
 class RetrievalDetails(ChunkContext):
@@ -242,6 +254,8 @@ class InferenceChunk(BaseChunk):
     primary_owners: list[str] | None = None
     secondary_owners: list[str] | None = None
     large_chunk_reference_ids: list[int] = Field(default_factory=list)
+
+    is_federated: bool = False
 
     @property
     def unique_id(self) -> str:
@@ -342,6 +356,44 @@ class SearchDoc(BaseModel):
     secondary_owners: list[str] | None = None
     is_internet: bool = False
 
+    @classmethod
+    def from_chunks_or_sections(
+        cls,
+        items: "Sequence[InferenceChunk | InferenceSection] | None",
+    ) -> list["SearchDoc"]:
+        """Convert a sequence of InferenceChunk or InferenceSection objects to SearchDoc objects."""
+        if not items:
+            return []
+
+        search_docs = [
+            cls(
+                document_id=(
+                    chunk := (
+                        item.center_chunk
+                        if isinstance(item, InferenceSection)
+                        else item
+                    )
+                ).document_id,
+                chunk_ind=chunk.chunk_id,
+                semantic_identifier=chunk.semantic_identifier or "Unknown",
+                link=chunk.source_links[0] if chunk.source_links else None,
+                blurb=chunk.blurb,
+                source_type=chunk.source_type,
+                boost=chunk.boost,
+                hidden=chunk.hidden,
+                metadata=chunk.metadata,
+                score=chunk.score,
+                match_highlights=chunk.match_highlights,
+                updated_at=chunk.updated_at,
+                primary_owners=chunk.primary_owners,
+                secondary_owners=chunk.secondary_owners,
+                is_internet=False,
+            )
+            for item in items
+        ]
+
+        return search_docs
+
     def model_dump(self, *args: list, **kwargs: dict[str, Any]) -> dict[str, Any]:  # type: ignore
         initial_dict = super().model_dump(*args, **kwargs)  # type: ignore
         initial_dict["updated_at"] = (
@@ -364,6 +416,40 @@ class SavedSearchDoc(SearchDoc):
         search_doc_data = search_doc.model_dump()
         search_doc_data["score"] = search_doc_data.get("score") or 0.0
         return cls(**search_doc_data, db_doc_id=db_doc_id)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SavedSearchDoc":
+        """Create SavedSearchDoc from serialized dictionary data (e.g., from database JSON)"""
+        return cls(**data)
+
+    @classmethod
+    def from_url(cls, url: str) -> "SavedSearchDoc":
+        """Create a SavedSearchDoc from a URL for internet search documents.
+
+        Uses the INTERNET_SEARCH_DOC_ prefix for document_id to match the format
+        used by inference sections created from internet content.
+        """
+        return cls(
+            # db_doc_id can be a filler value since these docs are not saved to the database.
+            db_doc_id=0,
+            document_id="INTERNET_SEARCH_DOC_" + url,
+            chunk_ind=0,
+            semantic_identifier=url,
+            link=url,
+            blurb="",
+            source_type=DocumentSource.WEB,
+            boost=1,
+            hidden=False,
+            metadata={},
+            score=0.0,
+            is_relevant=None,
+            relevance_explanation=None,
+            match_highlights=[],
+            updated_at=None,
+            primary_owners=None,
+            secondary_owners=None,
+            is_internet=True,
+        )
 
     def __lt__(self, other: Any) -> bool:
         if not isinstance(other, SavedSearchDoc):

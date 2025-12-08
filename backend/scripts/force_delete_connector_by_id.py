@@ -30,6 +30,12 @@ from onyx.db.index_attempt import (
     delete_index_attempts,
     cancel_indexing_attempts_for_ccpair,
 )
+from onyx.db.permission_sync_attempt import (
+    delete_doc_permission_sync_attempts__no_commit,
+)
+from onyx.db.permission_sync_attempt import (
+    delete_external_group_permission_sync_attempts__no_commit,
+)
 from onyx.db.models import ConnectorCredentialPair
 from onyx.document_index.interfaces import DocumentIndex
 from onyx.utils.logger import setup_logger
@@ -38,7 +44,7 @@ from onyx.db.connector_credential_pair import (
     get_connector_credential_pair_from_id,
     get_connector_credential_pair,
 )
-from onyx.db.engine import get_session_context_manager
+from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from onyx.document_index.factory import get_default_document_index
 from onyx.file_store.file_store import get_default_file_store
 
@@ -90,6 +96,16 @@ def _unsafe_deletion(
 
     # Delete index attempts
     delete_index_attempts(
+        db_session=db_session,
+        cc_pair_id=cc_pair.id,
+    )
+
+    # Delete permission sync attempts
+    delete_doc_permission_sync_attempts__no_commit(
+        db_session=db_session,
+        cc_pair_id=cc_pair.id,
+    )
+    delete_external_group_permission_sync_attempts__no_commit(
         db_session=db_session,
         cc_pair_id=cc_pair.id,
     )
@@ -187,7 +203,7 @@ def _delete_connector(cc_pair_id: int, db_session: Session) -> None:
             f"{connector_id} and Credential ID: {credential_id} does not exist."
         )
 
-    file_names: list[str] = (
+    file_ids: list[str] = (
         cc_pair.connector.connector_specific_config["file_locations"]
         if cc_pair.connector.source == DocumentSource.FILE
         else []
@@ -211,12 +227,12 @@ def _delete_connector(cc_pair_id: int, db_session: Session) -> None:
     except Exception as e:
         logger.error(f"Failed to delete connector due to {e}")
 
-    if file_names:
+    if file_ids:
         logger.notice("Deleting stored files!")
-        file_store = get_default_file_store(db_session)
-        for file_name in file_names:
-            logger.notice(f"Deleting file {file_name}")
-            file_store.delete_file(file_name)
+        file_store = get_default_file_store()
+        for file_id in file_ids:
+            logger.notice(f"Deleting file {file_id}")
+            file_store.delete_file(file_id)
 
     db_session.commit()
 
@@ -228,5 +244,5 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    with get_session_context_manager() as db_session:
+    with get_session_with_current_tenant() as db_session:
         _delete_connector(args.connector_id, db_session)
