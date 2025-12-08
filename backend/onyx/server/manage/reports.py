@@ -12,7 +12,7 @@ from onyx.configs.app_configs import ONYX_QUERY_HISTORY_TYPE
 from onyx.configs.constants import QueryHistoryType
 from onyx.db.chat_analytics import fetch_chat_sessions_by_assistant
 from onyx.db.chat_analytics import fetch_chat_sessions_by_user
-from onyx.db.engine import get_session
+from onyx.db.engine.sql_engine import get_session
 from onyx.db.models import User
 from onyx.server.manage.models import ChatSessionGroupData
 from onyx.server.manage.models import ChatSessionGroupRequest
