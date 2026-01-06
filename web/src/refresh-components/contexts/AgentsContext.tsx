@@ -57,7 +57,8 @@ function getPinnedAgents(
   agents: MinimalPersonaSnapshot[],
   pinnedAgentIds?: number[]
 ): MinimalPersonaSnapshot[] {
-  return pinnedAgentIds
+  // Use .length check so empty array [] falls through to default behavior
+  return pinnedAgentIds?.length
     ? (pinnedAgentIds
         .map((pinnedAgentId) =>
           agents.find((agent) => agent.id === pinnedAgentId)
