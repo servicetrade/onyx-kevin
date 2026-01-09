@@ -78,6 +78,8 @@ services:
       - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://minio:9000}
       - S3_AWS_ACCESS_KEY_ID=${S3_AWS_ACCESS_KEY_ID:-minioadmin}
       - S3_AWS_SECRET_ACCESS_KEY=${S3_AWS_SECRET_ACCESS_KEY:-minioadmin}
+      # increase google drive connector size
+      - GOOGLE_DRIVE_CONNECTOR_SIZE_THRESHOLD=104857600
     env_file:
       - path: .env
         required: false
