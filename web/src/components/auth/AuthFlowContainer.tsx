@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { OnyxIcon } from "../icons/icons";
+import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 
 export default function AuthFlowContainer({
   children,
@@ -10,10 +13,23 @@ export default function AuthFlowContainer({
   authState?: "signup" | "login" | "join";
   footerContent?: React.ReactNode;
 }) {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const logoSrc = mounted && resolvedTheme === "dark" ? "/logo-dark.png" : "/logo.png";
+
   return (
     <div className="p-4 flex flex-col items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md flex items-start flex-col bg-background-tint-00 rounded-16 shadow-lg shadow-02 p-6">
-        <OnyxIcon size={44} className="text-theme-primary-05" />
+        <img
+          src={logoSrc}
+          alt="Logo"
+          style={{ objectFit: "contain", height: 44, width: 44 }}
+        />
         <div className="w-full mt-3">{children}</div>
       </div>
       {authState === "login" && (
