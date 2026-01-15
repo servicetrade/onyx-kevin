@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { OnyxIcon, OnyxLogoTypeIcon } from "@/components/icons/icons";
+import { useMemo, useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { useSettingsContext } from "@/components/settings/SettingsProvider";
 import { NEXT_PUBLIC_DO_NOT_USE_TOGGLE_OFF_DANSWER_POWERED } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -15,33 +15,49 @@ export interface LogoProps {
 
 export default function Logo({ folded, className }: LogoProps) {
   const settings = useSettingsContext();
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Determine logo source - use static files when enterprise settings not configured
+  const logoSrc = settings.enterpriseSettings?.use_custom_logo
+    ? "/api/enterprise-settings/logo"
+    : mounted && resolvedTheme === "dark"
+      ? "/logo-dark.png"
+      : "/logo.png";
 
   const logo = useMemo(
-    () =>
-      settings.enterpriseSettings?.use_custom_logo ? (
-        <img
-          src="/api/enterprise-settings/logo"
-          alt="Logo"
-          style={{
-            objectFit: "contain",
-            height: FOLDED_SIZE,
-            width: FOLDED_SIZE,
-          }}
-          className={cn("flex-shrink-0", className)}
-        />
-      ) : (
-        <OnyxIcon
-          size={FOLDED_SIZE}
-          className={cn("flex-shrink-0", className)}
-        />
-      ),
-    [className, settings.enterpriseSettings?.use_custom_logo]
+    () => (
+      <img
+        src={logoSrc}
+        alt="Logo"
+        style={{
+          objectFit: "contain",
+          height: FOLDED_SIZE,
+          width: FOLDED_SIZE,
+        }}
+        className={cn("flex-shrink-0", className)}
+      />
+    ),
+    [className, logoSrc]
   );
 
   const applicationName = settings.enterpriseSettings?.application_name || "Kevin AI";
 
   return folded ? (
-    <OnyxIcon size={FOLDED_SIZE} className={cn("flex-shrink-0", className)} />
+    <img
+      src={logoSrc}
+      alt="Logo"
+      style={{
+        objectFit: "contain",
+        height: FOLDED_SIZE,
+        width: FOLDED_SIZE,
+      }}
+      className={cn("flex-shrink-0", className)}
+    />
   ) : (
     <div className="flex flex-col">
       <div className="flex flex-row items-center gap-2">
