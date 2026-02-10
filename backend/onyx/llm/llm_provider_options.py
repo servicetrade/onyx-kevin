@@ -82,7 +82,7 @@ BEDROCK_MODEL_NAMES = [
     for model in litellm.bedrock_models + litellm.bedrock_converse_models
     if "/" not in model and "embed" not in model
 ][::-1]
-BEDROCK_DEFAULT_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+BEDROCK_DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 IGNORABLE_ANTHROPIC_MODELS = [
     "claude-2",
@@ -96,8 +96,9 @@ ANTHROPIC_MODEL_NAMES = [
     if model not in IGNORABLE_ANTHROPIC_MODELS
 ][::-1]
 ANTHROPIC_VISIBLE_MODEL_NAMES = [
-    "claude-3-5-sonnet-20241022",
-    "claude-3-7-sonnet-20250219",
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-5-20250929",
+    "claude-opus-4-5-20251101",
 ]
 
 AZURE_PROVIDER_NAME = "azure"
@@ -145,7 +146,11 @@ _PROVIDER_TO_MODELS_MAP = {
 
 _PROVIDER_TO_VISIBLE_MODELS_MAP = {
     OPENAI_PROVIDER_NAME: OPEN_AI_VISIBLE_MODEL_NAMES,
-    BEDROCK_PROVIDER_NAME: [BEDROCK_DEFAULT_MODEL],
+    BEDROCK_PROVIDER_NAME: [
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "us.anthropic.claude-opus-4-5-20251101-v1:0",
+    ],
     ANTHROPIC_PROVIDER_NAME: ANTHROPIC_VISIBLE_MODEL_NAMES,
     VERTEXAI_PROVIDER_NAME: VERTEXAI_VISIBLE_MODEL_NAMES,
 }
@@ -179,8 +184,8 @@ def fetch_available_well_known_llms() -> list[WellKnownLLMProviderDescriptor]:
             model_configurations=fetch_model_configurations_for_provider(
                 ANTHROPIC_PROVIDER_NAME
             ),
-            default_model="claude-3-7-sonnet-20250219",
-            default_fast_model="claude-3-5-sonnet-20241022",
+            default_model="claude-sonnet-4-5-20250929",
+            default_fast_model="claude-haiku-4-5-20251001",
         ),
         WellKnownLLMProviderDescriptor(
             name=AZURE_PROVIDER_NAME,
