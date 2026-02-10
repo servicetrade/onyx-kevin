@@ -1,0 +1,29 @@
+-- KV-3001: Upgrade LLM Models to Claude 4.5 Family
+-- Run this SQL on the staging box AFTER deploying the new code.
+--
+-- This is a manual migration (not an Alembic migration) because it modifies
+-- deployment-specific data (model_configuration rows and llm_provider defaults),
+-- not schema.
+--
+-- Usage:
+--   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres -f /path/to/this/file
+--   OR run each statement individually via docker exec.
+
+-- Step 1: Verify llm_provider_id for AWS Bedrock (expected: 3, but check first)
+SELECT id, name FROM llm_provider;
+
+-- Step 2: Remove old model configurations
+DELETE FROM model_configuration;
+
+-- Step 3: Insert Claude 4.5 models with 200K token context windows
+-- NOTE: Adjust llm_provider_id (3) if Step 1 shows a different ID for AWS Bedrock
+INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens)
+VALUES
+  ('us.anthropic.claude-haiku-4-5-20251001-v1:0', true, 3, 200000),
+  ('us.anthropic.claude-sonnet-4-5-20250929-v1:0', true, 3, 200000),
+  ('us.anthropic.claude-opus-4-5-20251101-v1:0', true, 3, 200000);
+
+-- Step 4: Set Haiku 4.5 as the default model for the Bedrock provider
+UPDATE llm_provider
+SET default_model_name = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
+WHERE name = 'AWS Bedrock';
