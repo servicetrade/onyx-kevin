@@ -79,7 +79,7 @@ BEDROCK_MODEL_NAMES = [
     model
     # bedrock_converse_models are just extensions of the bedrock_models, not sure why
     # litellm has split them into two lists :(
-    for model in litellm.bedrock_models + litellm.bedrock_converse_models
+    for model in list(litellm.bedrock_models) + list(litellm.bedrock_converse_models)
     if "/" not in model and "embed" not in model
 ][::-1]
 BEDROCK_DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
