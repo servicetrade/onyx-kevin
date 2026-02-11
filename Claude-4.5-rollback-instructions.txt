@@ -1,19 +1,27 @@
-Claude 4.5 Model Upgrade - Rollback Instructions
-===================================================
+Claude 4 / 4.5 / 4.6 Model Upgrade - Rollback Instructions
+===========================================================
 Use these instructions to revert to the pre-upgrade state if needed.
 
-Pre-upgrade state (servicetrade branch @ 0d5cfa373):
-  - litellm 1.66.3, openai 1.75.0, langchain-openai 0.2.9, llama-index 0.12.28
+Pre-upgrade state (release-0 tag):
+  - litellm 1.79.0, openai 2.6.1
   - Bedrock default model: anthropic.claude-3-5-sonnet-20241022-v2:0
   - Anthropic defaults: claude-3-7-sonnet-20250219 / claude-3-5-sonnet-20241022
+  - Tag: release-0 (servicetrade branch @ 3c0ed94f3)
+
+Current models being rolled back:
+  - us.anthropic.claude-sonnet-4-20250514-v1:0    (Claude Sonnet 4)
+  - us.anthropic.claude-haiku-4-5-20251001-v1:0   (Claude Haiku 4.5)
+  - us.anthropic.claude-sonnet-4-5-20250929-v1:0  (Claude Sonnet 4.5)
+  - us.anthropic.claude-opus-4-5-20251101-v1:0    (Claude Opus 4.5)
+  - us.anthropic.claude-opus-4-6-v1               (Claude Opus 4.6)
 
 Rollback Steps
 --------------
 
-1. Switch back to the servicetrade branch
+1. Switch back to the release-0 tag
 
    cd /root/danswer
-   git fetch && git checkout servicetrade && git pull
+   git fetch && git checkout release-0
 
 2. Rebuild the Docker image with the old code
 
@@ -41,7 +49,7 @@ Rollback Steps
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
      -c "SELECT * FROM model_configuration;"
 
-   # Clear the Claude 4.5 model configurations
+   # Clear the Claude 4 / 4.5 / 4.6 model configurations
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
      -c "DELETE FROM model_configuration;"
 

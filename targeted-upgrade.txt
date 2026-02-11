@@ -1,0 +1,119 @@
+# KV-3001: Claude 4.5 Model Upgrade - Deployment Notes
+
+## Date: 2026-02-10
+
+## What Was Done
+
+### Code Changes (committed to feb-new-models branch)
+
+1. **litellm 1.66.3 → 1.81.3** (both default.txt and model_server.txt)
+2. **openai 1.75.0 → 2.8.0** (both default.txt and model_server.txt)
+3. **Removed langchain-openai==0.2.9** from default.txt (never imported in codebase)
+4. **llama-index==0.12.28 → llama-index-core==0.12.28** in default.txt (only SentenceSplitter used)
+5. **llm_provider_options.py** — Updated Bedrock + Anthropic providers to Claude 4.5 models
+   - BEDROCK_DEFAULT_MODEL = us.anthropic.claude-haiku-4-5-20251001-v1:0
+   - Both default_model and default_fast_model = Haiku 4.5 for Bedrock
+   - Anthropic: default_model=Sonnet 4.5, default_fast_model=Haiku 4.5
+   - Visible models: all three Claude 4.5 models for both providers
+6. **hooks.ts** — Added 9 MODEL_DISPLAY_NAMES entries (3 direct, 3 us.anthropic.*, 3 anthropic.*)
+   - Added 6 bedrock + 3 anthropic entries to defaultModelsByProvider
+   - Kept old models alongside new ones
+7. **provisioning.py** — EE tenant defaults updated to Sonnet 4.5 / Haiku 4.5
+8. **SQL migration file** — backend/alembic/versions/kv3001_claude_45_model_migration.sql.txt
+
+### PR
+- https://github.com/servicetrade/onyx-kevin/pull/4
+- feb-new-models → servicetrade
+
+### Commits
+1. `c8a7c7cc7` — KV-3001: Upgrade LLM models to Claude 4.5 family (main changes)
+2. `a58f91f83` — KV-3001: Add manual SQL migration for Claude 4.5 model configuration
+3. `233dac29a` — KV-3001: Fix set concatenation for litellm 1.81.3
+
+## Deployment to Staging (kevin-staging.servicetrade.com)
+
+### Steps Performed
+1. SSH to staging box
+2. `cd /root/danswer && git fetch && git checkout feb-new-models && git pull`
+3. `docker build -t onyxdotapp/onyx-backend:latest -f backend/Dockerfile backend/`
+4. `cd deployment/docker_compose`
+5. `docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack down`
+6. `docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack up -d`
+
+### Issue 1: api_server crash loop — set concatenation TypeError
+- **Symptom**: api_server container in "Restarting" state, 502 from nginx
+- **Error**: `TypeError: unsupported operand type(s) for +: 'set' and 'set'` in llm_provider_options.py:82
+- **Cause**: litellm 1.81.3 changed `bedrock_models` and `bedrock_converse_models` from list to set
+- **Fix**: `list(litellm.bedrock_models) + list(litellm.bedrock_converse_models)` (commit 233dac29a)
+- **Resolution**: Rebuilt Docker image and restarted stack
+
+### SQL Migration Executed
+After containers came up:
+```bash
+# Verified llm_provider_id
+docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres -c "SELECT id, name FROM llm_provider;"
+
+# Cleared old models
+docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres -c "DELETE FROM model_configuration;"
+
+# Inserted Claude 4.5 models with 200K context windows
+docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('us.anthropic.claude-haiku-4-5-20251001-v1:0', true, 3, 200000), ('us.anthropic.claude-sonnet-4-5-20250929-v1:0', true, 3, 200000), ('us.anthropic.claude-opus-4-5-20251101-v1:0', true, 3, 200000);"
+
+# Set Haiku as default
+docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres -c "UPDATE llm_provider SET default_model_name = 'us.anthropic.claude-haiku-4-5-20251001-v1:0' WHERE name = 'AWS Bedrock';"
+```
+
+### Issue 2: Vespa 503 — search unavailable after stack restart
+- **Symptom**: Can log in, can select Claude 4.5 models from dropdown (friendly names work!), but chat fails with "Failed to query Vespa" / 503
+- **Cause**: NOT related to our changes. Vespa is loading a massive index (~65GB RAM for proton process). This happens after any full stack restart.
+- **Vespa loading progress** (from proton logs):
+  - Loading attributes one by one from disk
+  - `blurb` attribute: 255 seconds (4+ min)
+  - `embeddings` attribute: 733 seconds (12+ min)
+  - `title_embedding` attribute: started loading, estimated similar duration
+  - After all attributes load, transaction log replay may follow
+- **Health check**: `docker exec danswer-stack-index-1 curl -s http://localhost:8081/state/v1/health | grep code`
+  - Shows `"initializing"` until all data is loaded, then flips to `"up"`
+- **Resolution**: Wait. Vespa needs 20-30+ minutes to fully load this index after a restart.
+
+### Monitoring Commands
+```bash
+# Check Vespa health
+docker exec danswer-stack-index-1 curl -s http://localhost:8081/state/v1/health | grep code
+
+# Watch attribute loading progress
+docker exec danswer-stack-index-1 grep -i "load.attribute" /opt/vespa/logs/vespa/vespa.log | tail -5
+
+# Check container status
+docker ps -a --format "table {{.Names}}\t{{.Status}}"
+
+# Check API server logs
+docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack logs --tail 30 api_server
+```
+
+## Verification Status
+- [x] Containers all running (api_server, web_server, background, model servers, vespa, postgres, redis)
+- [x] Can log in to https://kevin-staging.servicetrade.com
+- [x] Model dropdown shows Claude 4.5 models with friendly names
+- [x] Haiku 4.5 selectable as chat model
+- [ ] Chat with Haiku 4.5 returns response (BLOCKED: waiting for Vespa to finish loading)
+- [ ] Chat with Sonnet 4.5 returns response
+- [ ] Chat with Opus 4.5 returns response
+- [ ] RAG/search works with 200K context window
+- [ ] Model names display correctly in chat history
+
+## Pre-existing Issues Found (not from KV-3001)
+Documented in KV-3002.md:
+- Bug: SlackChannelConfig.from_model passes raw ORM objects
+- Bug: DEFAULT_PERSONA_ID hardcoded to staging-specific ID 11
+- Critical: SQLAlchemy error details leaked in API response
+- Unused imports in chat_analytics.py and DateRangeSelector.tsx
+- No tests for reports feature
+- LOG_LEVEL default changed to debug in prod compose
+
+## Key Learnings
+1. **litellm 1.81.3 changed bedrock_models/bedrock_converse_models from list to set** — broke concatenation with `+`. Need `list()` wrapper.
+2. **Vespa takes 20-30+ minutes to restart** with large indexes. Plan for this during deployments.
+3. **SQL migration is essential** — without model_configuration rows with max_input_tokens=200000, context windows fall back to 4096 tokens.
+4. **Docker build is required** — staging uses pre-built images, not local code. Must `docker build -t onyxdotapp/onyx-backend:latest` after code changes.
+5. **Use `docker-compose` (with hyphen)** on the staging box, not `docker compose`.

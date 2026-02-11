@@ -1,0 +1,112 @@
+# Onyx v2.5.9 Upgrade Instructions
+
+## Pre-requisites
+- Snapshot of staging server taken (for rollback)
+- Branch `servicetrade-upgrade-dec2025` already has all code fixes merged
+
+## Important: Container Naming
+The staging server uses project name `onyx`, so containers are named:
+- `onyx-api_server-1`
+- `onyx-nginx-1`
+- `onyx-relational_db-1`
+- etc.
+
+## On Staging Server
+
+### 1. Stop Services (Clean)
+```bash
+cd /root/danswer/deployment/docker_compose
+docker-compose down
+```
+
+### 2. Pull Latest Code
+```bash
+cd /root/danswer
+git fetch origin
+git checkout servicetrade-upgrade-dec2025
+git pull
+```
+
+### 3. Rebuild Images
+The deployment uses pre-built images, so we must rebuild to get code changes:
+```bash
+cd /root/danswer
+docker build -t onyxdotapp/onyx-backend:latest -f backend/Dockerfile backend/
+docker build -t onyxdotapp/onyx-web-server:latest -f web/Dockerfile web/
+```
+
+### 4. Start Services
+```bash
+cd /root/danswer/deployment/docker_compose
+docker-compose up -d
+```
+
+### 5. Verify Deployment
+```bash
+# Check all containers are running (should be 12)
+docker-compose ps
+
+# Verify migrations ran (single head, no errors)
+docker exec onyx-api_server-1 alembic heads
+
+# Check API server logs - look for "Application startup complete"
+docker logs onyx-api_server-1 --tail 30
+
+# Check nginx is healthy (not restarting)
+docker logs onyx-nginx-1 --tail 10
+```
+
+### 6. Test in Browser
+- Navigate to https://kevin.servicetrade.com
+- Verify login works
+- Verify LLM provider settings are intact
+
+## What the Code Fixes Include
+1. Dockerfile ONYX_VERSION corrected to v2.5.9
+2. Missing shadcn/ui components (button.tsx, separator.tsx)
+3. reports.py import path fix for db.engine refactor
+4. Kevin AI branding in 4 UI files
+5. Nginx run-nginx.sh - removed missing headers_more module
+
+## Troubleshooting
+
+### If nginx keeps restarting
+Check logs: `docker logs onyx-nginx-1 --tail 20`
+- If "module not found" error, ensure you pulled latest code (run-nginx.sh fix)
+
+### If "multiple heads" migration error
+This shouldn't happen - the problematic migration was deleted. If it does:
+```bash
+docker exec -it onyx-api_server-1 alembic heads
+```
+Should show single head.
+
+### If port 80 already allocated
+```bash
+docker stop $(docker ps -aq) && sleep 2 && docker-compose up -d
+```
+
+## Post-Upgrade: Add New LLM Models (Optional)
+After confirming app works, add Claude 4.5 and other new models:
+```bash
+docker exec -it onyx-relational_db-1 psql -U postgres -d postgres
+```
+
+```sql
+INSERT INTO model_configuration (llm_provider_id, name, is_visible, max_input_tokens, supports_image_input)
+SELECT lp.id, m.name, m.is_visible, NULL, m.supports_image
+FROM llm_provider lp
+CROSS JOIN (VALUES
+    ('claude-sonnet-4-5-20250929', true, true),
+    ('claude-sonnet-4-5', true, true),
+    ('claude-opus-4-5-20251101', true, true),
+    ('claude-haiku-4-5', true, true),
+    ('claude-opus-4-1', true, true),
+    ('claude-sonnet-4-20250514', true, true),
+    ('claude-3-7-sonnet-latest', true, true),
+    ('claude-3-5-sonnet-20241022', true, true),
+    ('claude-3-5-haiku-20241022', true, true)
+) AS m(name, is_visible, supports_image)
+WHERE lp.provider = 'anthropic'
+ON CONFLICT (llm_provider_id, name) DO NOTHING;
+```

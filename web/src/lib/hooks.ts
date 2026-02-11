@@ -747,6 +747,9 @@ const MODEL_DISPLAY_NAMES: { [key: string]: string } = {
   "anthropic.claude-sonnet-4-5-20250929-v1:0": "Claude Sonnet 4.5",
   "anthropic.claude-opus-4-5-20251101-v1:0": "Claude Opus 4.5",
 
+  // Claude 4.6 models
+  "us.anthropic.claude-opus-4-6-v1": "Claude Opus 4.6",
+
   // Google Models
 
   // 2.5 pro models
@@ -853,6 +856,7 @@ export const defaultModelsByProvider: { [name: string]: string[] } = {
     "us.anthropic.claude-haiku-4-5-20251001-v1:0",
     "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
     "us.anthropic.claude-opus-4-5-20251101-v1:0",
+    "us.anthropic.claude-opus-4-6-v1",
     "anthropic.claude-haiku-4-5-20251001-v1:0",
     "anthropic.claude-sonnet-4-5-20250929-v1:0",
     "anthropic.claude-opus-4-5-20251101-v1:0",

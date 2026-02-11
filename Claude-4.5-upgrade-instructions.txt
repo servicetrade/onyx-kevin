@@ -1,25 +1,37 @@
-Claude 4.5 Model Upgrade Instructions
-=======================================
+Claude 4 / 4.5 / 4.6 Model Upgrade Instructions
+================================================
 PR: https://github.com/servicetrade/onyx-kevin/pull/4
-Branch: feb-new-models -> servicetrade
+Branch: feb-new-models (will be merged to servicetrade after QA)
+Baseline: release-0 tag
 
 What This Changes
 -----------------
-- litellm 1.66.3 -> 1.81.3 (required for Claude 4.5 Bedrock support)
+- litellm 1.66.3 -> 1.81.10 (required for Claude 4.5/4.6 Bedrock support)
 - openai 1.75.0 -> 2.8.0
 - Removed langchain-openai (unused)
 - llama-index -> llama-index-core (only SentenceSplitter used)
-- Backend provider options updated for Claude Sonnet 4 and Claude 4.5 (Haiku, Sonnet, Opus)
-- Frontend display names for all Claude 4.5 model ID formats
+- Backend provider options updated for Claude Sonnet 4, Claude 4.5 (Haiku, Sonnet, Opus), and Claude Opus 4.6
+- Frontend display names for Claude 4, 4.5, and 4.6 model ID formats
 - EE tenant provisioning defaults updated
+
+Models Available After Upgrade
+------------------------------
+- us.anthropic.claude-sonnet-4-20250514-v1:0    -> "Claude Sonnet 4"
+- us.anthropic.claude-haiku-4-5-20251001-v1:0   -> "Claude Haiku 4.5"
+- us.anthropic.claude-sonnet-4-5-20250929-v1:0  -> "Claude Sonnet 4.5"
+- us.anthropic.claude-opus-4-5-20251101-v1:0    -> "Claude Opus 4.5"
+- us.anthropic.claude-opus-4-6-v1               -> "Claude Opus 4.6"
 
 Deployment Steps
 ----------------
 
-1. Pull the branch
+1. Pull the branch (after merge to servicetrade, this will just be "git pull")
 
    cd /root/danswer
    git fetch && git checkout feb-new-models && git pull
+
+   # After QA and merge to servicetrade, this step becomes:
+   # git checkout servicetrade && git pull
 
 2. Rebuild the Docker image (REQUIRED - staging uses pre-built images, not local code)
 
@@ -80,9 +92,9 @@ Deployment Steps
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
      -c "DELETE FROM model_configuration;"
 
-   # Insert Claude 4 and 4.5 models (adjust llm_provider_id if not 3)
+   # Insert Claude 4, 4.5, and 4.6 models (adjust llm_provider_id if not 3)
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
-     -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('us.anthropic.claude-sonnet-4-20250514-v1:0', true, 3, 200000), ('us.anthropic.claude-haiku-4-5-20251001-v1:0', true, 3, 200000), ('us.anthropic.claude-sonnet-4-5-20250929-v1:0', true, 3, 200000), ('us.anthropic.claude-opus-4-5-20251101-v1:0', true, 3, 200000);"
+     -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('us.anthropic.claude-sonnet-4-20250514-v1:0', true, 3, 200000), ('us.anthropic.claude-haiku-4-5-20251001-v1:0', true, 3, 200000), ('us.anthropic.claude-sonnet-4-5-20250929-v1:0', true, 3, 200000), ('us.anthropic.claude-opus-4-5-20251101-v1:0', true, 3, 200000), ('us.anthropic.claude-opus-4-6-v1', true, 3, 200000);"
 
    # Set Haiku 4.5 as default
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
@@ -93,7 +105,7 @@ Deployment Steps
 7. Verify
 
    - Log in at https://kevin-staging.servicetrade.com
-   - Start a new chat -- model dropdown should show Sonnet 4, Haiku 4.5, Sonnet 4.5, Opus 4.5
+   - Start a new chat -- model dropdown should show Sonnet 4, Haiku 4.5, Sonnet 4.5, Opus 4.5, Opus 4.6
    - Send a test message with each model
    - Try a search-based query to verify RAG works with 200K context window
 
