@@ -1,0 +1,126 @@
+Claude 4.5 Model Upgrade Instructions
+=======================================
+PR: https://github.com/servicetrade/onyx-kevin/pull/4
+Branch: feb-new-models -> servicetrade
+
+What This Changes
+-----------------
+- litellm 1.66.3 -> 1.81.3 (required for Claude 4.5 Bedrock support)
+- openai 1.75.0 -> 2.8.0
+- Removed langchain-openai (unused)
+- llama-index -> llama-index-core (only SentenceSplitter used)
+- Backend provider options updated for Claude 4.5 (Haiku, Sonnet, Opus)
+- Frontend display names for all Claude 4.5 model ID formats
+- EE tenant provisioning defaults updated
+
+Deployment Steps
+----------------
+
+1. Pull the branch
+
+   cd /root/danswer
+   git fetch && git checkout feb-new-models && git pull
+
+2. Rebuild the Docker image (REQUIRED - staging uses pre-built images, not local code)
+
+   docker build -t onyxdotapp/onyx-backend:latest -f backend/Dockerfile backend/
+
+3. Restart the stack
+
+   cd /root/danswer/deployment/docker_compose
+   docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack down
+   docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack up -d
+
+   NOTE: Use "docker-compose" (with hyphen) on the staging box, not "docker compose".
+
+4. Wait for containers to come up
+
+   docker ps --format "table {{.Names}}\t{{.Status}}"
+
+   All containers should show "Up" status. If api_server is in a restart loop,
+   check logs:
+
+   docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack logs --tail 50 api_server
+
+5. Wait for Vespa to finish loading (20-30+ minutes)
+
+   Vespa must load its entire index from disk after a full stack restart.
+   With a large index (~10M+ documents), this takes 20-30+ minutes.
+   Search will NOT work until Vespa is fully ready.
+
+   Monitor Vespa health:
+   docker exec danswer-stack-index-1 curl -s http://localhost:8081/state/v1/health | grep code
+
+   - "initializing" = still loading, search will fail with 503
+   - "up" = ready (but see note below about compaction)
+
+   Watch attribute loading progress:
+   docker exec danswer-stack-index-1 grep -i "load.attribute" /opt/vespa/logs/vespa/vespa.log | tail -5
+
+   The embeddings attribute alone can take 12+ minutes to load.
+
+   IMPORTANT: Even after health shows "up", Vespa may still be compacting data.
+   If search queries return 504 Gateway Timeout after health is "up":
+   - Check if compaction is running:
+     docker exec danswer-stack-index-1 grep -i "compact" /opt/vespa/logs/vespa/vespa.log | tail -5
+   - Check model server is healthy (needed for query embeddings):
+     docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack logs --tail 20 model_server
+   - Wait a few more minutes for compaction to finish, then retry.
+
+6. Run the SQL migration
+
+   The model_configuration table needs rows with max_input_tokens=200000 for the
+   new models. Without this, context windows fall back to 4096 tokens.
+
+   # Verify provider ID first
+   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
+     -c "SELECT id, name FROM llm_provider;"
+
+   # Clear old model configurations
+   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
+     -c "DELETE FROM model_configuration;"
+
+   # Insert Claude 4.5 models (adjust llm_provider_id if not 3)
+   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
+     -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('us.anthropic.claude-haiku-4-5-20251001-v1:0', true, 3, 200000), ('us.anthropic.claude-sonnet-4-5-20250929-v1:0', true, 3, 200000), ('us.anthropic.claude-opus-4-5-20251101-v1:0', true, 3, 200000);"
+
+   # Set Haiku 4.5 as default
+   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
+     -c "UPDATE llm_provider SET default_model_name = 'us.anthropic.claude-haiku-4-5-20251001-v1:0' WHERE name = 'AWS Bedrock';"
+
+   The full SQL is also in: backend/alembic/versions/kv3001_claude_45_model_migration.sql.txt
+
+7. Verify
+
+   - Log in at https://kevin-staging.servicetrade.com
+   - Start a new chat -- model dropdown should show Haiku 4.5, Sonnet 4.5, Opus 4.5
+   - Send a test message with each model
+   - Try a search-based query to verify RAG works with 200K context window
+
+Troubleshooting
+---------------
+
+api_server crash loop (502 from nginx):
+  Check logs for the specific error. During this upgrade we hit a litellm
+  compatibility issue where bedrock_models changed from list to set in v1.81.3.
+  This was fixed in commit 233dac29a. If you see similar type errors, rebuild
+  the Docker image with the latest code.
+
+Vespa 503 (search unavailable):
+  Normal after a full stack restart. Vespa needs 20-30+ minutes to load a large
+  index. Monitor with the health check command in step 5.
+
+Vespa 504 (search timeout after health is "up"):
+  Vespa may be compacting data after loading. Also verify the model_server
+  container is running -- it generates query embeddings needed for hybrid search.
+  If model_server is down, search queries will hang until timeout.
+
+Models not showing in dropdown:
+  Run the SQL migration in step 6. The model_configuration table controls which
+  models appear in the UI.
+
+Context window too small (truncated responses):
+  The SQL migration sets max_input_tokens=200000. Without it, the system falls
+  back to 4096 tokens. Verify with:
+  docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
+    -c "SELECT name, max_input_tokens FROM model_configuration;"
