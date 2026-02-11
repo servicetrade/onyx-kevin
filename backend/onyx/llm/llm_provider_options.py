@@ -147,6 +147,7 @@ _PROVIDER_TO_MODELS_MAP = {
 _PROVIDER_TO_VISIBLE_MODELS_MAP = {
     OPENAI_PROVIDER_NAME: OPEN_AI_VISIBLE_MODEL_NAMES,
     BEDROCK_PROVIDER_NAME: [
+        "us.anthropic.claude-sonnet-4-20250514-v1:0",
         "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         "us.anthropic.claude-opus-4-5-20251101-v1:0",
