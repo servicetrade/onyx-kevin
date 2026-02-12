@@ -25,6 +25,10 @@ Models Available After Upgrade
 Deployment Steps
 ----------------
 
+0. Switch to root user
+
+   sudo su -
+
 1. Pull the branch (after merge to servicetrade, this will just be "git pull")
 
    cd /root/danswer
