@@ -140,3 +140,15 @@ Context window too small (truncated responses):
   back to 4096 tokens. Verify with:
   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
     -c "SELECT name, max_input_tokens FROM model_configuration;"
+
+Optional: Add Llama 4 Models to Quick Menu
+-------------------------------------------
+To add Llama 4 Scout and Maverick alongside the Claude models:
+
+   docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
+     -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('us.meta.llama4-scout-17b-instruct-v1:0', true, 3, NULL), ('us.meta.llama4-maverick-17b-instruct-v1:0', true, 3, NULL) ON CONFLICT DO NOTHING;"
+
+Then restart api_server to pick up the change:
+
+   cd /root/danswer/deployment/docker_compose
+   docker-compose -f docker-compose.prod-no-letsencrypt.yml -p danswer-stack restart api_server

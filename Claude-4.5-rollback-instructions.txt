@@ -1,19 +1,22 @@
 Claude 4 / 4.5 / 4.6 Model Upgrade - Rollback Instructions
 ===========================================================
-Use these instructions to revert to the pre-upgrade state if needed.
+Use these instructions to roll back to a stable 4-model configuration.
 
-Pre-upgrade state (release-0 tag):
-  - litellm 1.79.0, openai 2.6.1
-  - Bedrock default model: anthropic.claude-3-5-sonnet-20241022-v2:0
-  - Anthropic defaults: claude-3-7-sonnet-20250219 / claude-3-5-sonnet-20241022
-  - Tag: release-0 (servicetrade branch @ 3c0ed94f3)
+Rollback target models:
+  - us.anthropic.claude-sonnet-4-20250514-v1:0    (Claude Sonnet 4) [DEFAULT]
+  - us.anthropic.claude-3-7-sonnet-20250219-v1:0  (Claude 3.7 Sonnet)
+  - us.meta.llama4-scout-17b-instruct-v1:0        (Llama 4 Scout)
+  - us.meta.llama4-maverick-17b-instruct-v1:0     (Llama 4 Maverick)
 
-Current models being rolled back:
-  - us.anthropic.claude-sonnet-4-20250514-v1:0    (Claude Sonnet 4)
+Models being removed:
   - us.anthropic.claude-haiku-4-5-20251001-v1:0   (Claude Haiku 4.5)
   - us.anthropic.claude-sonnet-4-5-20250929-v1:0  (Claude Sonnet 4.5)
   - us.anthropic.claude-opus-4-5-20251101-v1:0    (Claude Opus 4.5)
   - us.anthropic.claude-opus-4-6-v1               (Claude Opus 4.6)
+
+Code rollback target:
+  - Tag: release-0 (servicetrade branch @ 3c0ed94f3)
+  - litellm 1.79.0, openai 2.6.1
 
 Rollback Steps
 --------------
@@ -40,7 +43,7 @@ Rollback Steps
    Vespa will need 20-30+ minutes to reload its index. Monitor:
    docker exec danswer-stack-index-1 curl -s http://localhost:8081/state/v1/health | grep code
 
-5. Restore the old model configuration in the database
+5. Restore the model configuration in the database
 
    # Check current state
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
@@ -49,22 +52,27 @@ Rollback Steps
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
      -c "SELECT * FROM model_configuration;"
 
-   # Clear the Claude 4 / 4.5 / 4.6 model configurations
+   # Clear all model configurations
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
      -c "DELETE FROM model_configuration;"
 
-   # Restore the old Bedrock model (adjust llm_provider_id if not 3)
+   # Insert the 4 rollback models (adjust llm_provider_id if not 3)
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
-     -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('anthropic.claude-3-5-sonnet-20241022-v2:0', true, 3, 200000);"
+     -c "INSERT INTO model_configuration (name, is_visible, llm_provider_id, max_input_tokens) VALUES ('us.anthropic.claude-sonnet-4-20250514-v1:0', true, 3, 200000), ('us.anthropic.claude-3-7-sonnet-20250219-v1:0', true, 3, 200000), ('us.meta.llama4-scout-17b-instruct-v1:0', true, 3, NULL), ('us.meta.llama4-maverick-17b-instruct-v1:0', true, 3, NULL);"
 
-   # Restore the old default model
+   # Set Claude Sonnet 4 as default
    docker exec -it danswer-stack-relational_db-1 psql -U postgres -d postgres \
-     -c "UPDATE llm_provider SET default_model_name = 'anthropic.claude-3-5-sonnet-20241022-v2:0' WHERE name = 'AWS Bedrock';"
+     -c "UPDATE llm_provider SET default_model_name = 'us.anthropic.claude-sonnet-4-20250514-v1:0', fast_default_model_name = 'us.anthropic.claude-sonnet-4-20250514-v1:0' WHERE name = 'AWS Bedrock';"
 
 6. Verify
 
    - Log in at https://kevin-staging.servicetrade.com
-   - Model dropdown should show the old Claude 3.5 Sonnet model
+   - Model dropdown should show exactly 4 models:
+     * Claude Sonnet 4
+     * Claude 3.7 Sonnet
+     * Llama 4 Scout
+     * Llama 4 Maverick
+   - Default should be Claude Sonnet 4
    - Send a test message to confirm chat works
    - Try a search query to confirm RAG works
 
